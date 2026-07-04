@@ -75,4 +75,4 @@ docker compose up postgres
 
 ## License
 
-This repository is released under the license in `LICENSE.md`.
+This repository is released under the Apache License 2.0. See `LICENSE`.
