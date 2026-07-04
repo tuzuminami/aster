@@ -65,9 +65,16 @@ export class AsterService {
         createdBy: context.actorId,
         updatedAt: now
       };
-      await this.ports.repository.createVersion(personaVersion);
-      await this.audit(context, "persona_version.created", "persona_version", `${input.personaId}:1`, undefined, personaVersion.contentHash);
-      return personaVersion;
+      const created = await this.ports.repository.createVersion(personaVersion);
+      await this.audit(
+        context,
+        "persona_version.created",
+        "persona_version",
+        `${input.personaId}:${created.version}`,
+        undefined,
+        created.contentHash
+      );
+      return created;
     });
   }
 

@@ -22,14 +22,14 @@ export const createAsterServer = () =>
         return send(response, 200, { data: { ok: true } });
       }
       if (request.method === "POST" && url.pathname === "/v1/personas") {
-        return send(response, 201, { data: await service.createPersona(contextFrom(request), await readJson(request)) });
+        return send(response, 201, { data: await service.createPersona(contextFrom(request), parseCreatePersona(await readJson(request))) });
       }
       const versionMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions$/);
       if (request.method === "POST" && versionMatch?.[1]) {
         return send(response, 201, {
           data: await service.createVersion(contextFrom(request), {
             personaId: versionMatch[1],
-            contract: (await readJson(request)).contract
+            contract: parseCreateVersion(await readJson(request)).contract
           })
         });
       }
@@ -70,11 +70,13 @@ const contextFrom = (request: IncomingMessage): RequestContext => {
   }
   const tenantId = header(request, "x-tenant-id");
   const actorId = auth.slice("Bearer ".length);
+  if (actorId.length === 0) throw new AsterError("AUTHENTICATION_REQUIRED", 401, "Authentication is required.");
+  const idempotencyKey = request.headers["idempotency-key"]?.toString();
   return {
     tenantId,
     actorId,
     correlationId: request.headers["x-correlation-id"]?.toString() ?? "corr_dev",
-    idempotencyKey: request.headers["idempotency-key"]?.toString()
+    ...(idempotencyKey ? { idempotencyKey } : {})
   };
 };
 
@@ -85,10 +87,37 @@ const header = (request: IncomingMessage, name: string): string => {
 };
 
 const readJson = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
+  const contentType = request.headers["content-type"]?.toString();
+  if (request.method !== "GET" && contentType !== undefined && !contentType.includes("application/json")) {
+    throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["content-type must be application/json"]);
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   if (chunks.length === 0) return {};
-  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["body must be a JSON object"]);
+    }
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    if (error instanceof AsterError) throw error;
+    throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["body must be valid JSON"]);
+  }
+};
+
+const parseCreatePersona = (body: Record<string, unknown>): { readonly name: string } => {
+  if (typeof body.name !== "string" || body.name.trim().length === 0) {
+    throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["name is required"]);
+  }
+  return { name: body.name };
+};
+
+const parseCreateVersion = (body: Record<string, unknown>): { readonly contract: unknown } => {
+  if (!Object.hasOwn(body, "contract")) {
+    throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["contract is required"]);
+  }
+  return { contract: body.contract };
 };
 
 const send = (response: ServerResponse, status: number, body: unknown): void => {

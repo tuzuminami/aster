@@ -11,7 +11,7 @@ export interface IdGenerator {
 export interface PersonaRepository {
   createPersona(persona: Persona): Promise<void>;
   getPersona(tenantId: string, personaId: string): Promise<Persona | undefined>;
-  createVersion(version: PersonaVersion): Promise<void>;
+  createVersion(version: PersonaVersion): Promise<PersonaVersion>;
   getVersion(tenantId: string, personaId: string, version: number): Promise<PersonaVersion | undefined>;
   updateVersionStatus(
     tenantId: string,

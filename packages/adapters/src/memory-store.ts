@@ -18,12 +18,14 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     return this.personas.get(key(tenantId, personaId));
   }
 
-  public async createVersion(version: PersonaVersion): Promise<void> {
+  public async createVersion(version: PersonaVersion): Promise<PersonaVersion> {
     const existingVersions = [...this.versions.values()].filter(
       (candidate) => candidate.tenantId === version.tenantId && candidate.personaId === version.personaId
     );
     const nextVersion = existingVersions.length + 1;
-    this.versions.set(versionKey(version.tenantId, version.personaId, nextVersion), { ...version, version: nextVersion });
+    const created = { ...version, version: nextVersion };
+    this.versions.set(versionKey(version.tenantId, version.personaId, nextVersion), created);
+    return created;
   }
 
   public async getVersion(tenantId: string, personaId: string, version: number): Promise<PersonaVersion | undefined> {
@@ -44,7 +46,8 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     return updated;
   }
 
-  public async saveBundle(bundle: CompiledBundle, tenantId: string): Promise<void> {
+  public async saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<void> {
+    void actorId;
     this.bundles.set(`${tenantId}:${bundle.personaId}:${bundle.version}:${bundle.compilerVersion}`, bundle);
   }
 

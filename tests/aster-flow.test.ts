@@ -125,14 +125,16 @@ test("AT-AST-006 plugin validation requires tenant context", async () => {
 test("AT-AST-005 diff reports changed components", async () => {
   const { service } = makeService();
   const persona = await service.createPersona(baseContext("create-persona-5"), { name: "Tutor" });
-  await service.createVersion(baseContext("create-version-5a"), { personaId: persona.id, contract });
-  await service.createVersion(baseContext("create-version-5b"), {
+  const first = await service.createVersion(baseContext("create-version-5a"), { personaId: persona.id, contract });
+  const second = await service.createVersion(baseContext("create-version-5b"), {
     personaId: persona.id,
     contract: {
       ...contract,
       components: [...contract.components, { id: "extra", type: "instruction", body: "Ask one follow-up question." }]
     }
   });
+  assert.equal(first.version, 1);
+  assert.equal(second.version, 2);
   const diff = await service.diffVersions(baseContext("diff-5"), { personaId: persona.id, fromVersion: 1, toVersion: 2 });
   assert.deepEqual(diff.changedComponents, ["extra"]);
 });
