@@ -166,7 +166,8 @@ export class AsterService {
     };
   }
 
-  public async validatePlugin(input: unknown): Promise<{ readonly valid: true }> {
+  public async validatePlugin(context: RequestContext, input: unknown): Promise<{ readonly valid: true }> {
+    this.requireTenant(context);
     const manifest: PluginManifest = parsePluginManifest(input);
     await this.ports.plugins.validateManifest(manifest);
     return { valid: true };

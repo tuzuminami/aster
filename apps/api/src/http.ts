@@ -52,7 +52,7 @@ export const createAsterServer = () =>
         });
       }
       if (request.method === "POST" && url.pathname === "/v1/plugins/validate") {
-        return send(response, 200, { data: await service.validatePlugin(await readJson(request)) });
+        return send(response, 200, { data: await service.validatePlugin(contextFrom(request), await readJson(request)) });
       }
       return send(response, 404, { error: { code: "RESOURCE_NOT_FOUND", message: "Route was not found." } });
     } catch (error) {

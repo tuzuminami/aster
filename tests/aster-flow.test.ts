@@ -105,6 +105,23 @@ test("AT-AST-004 tenant isolation and unknown plugin references fail closed", as
   );
 });
 
+test("AT-AST-006 plugin validation requires tenant context", async () => {
+  const { service } = makeService();
+  await assert.rejects(
+    service.validatePlugin(
+      { tenantId: "", actorId: "actor_a", correlationId: "corr_a", idempotencyKey: "plugin-1" },
+      {
+        name: "renderer",
+        version: "1.0.0",
+        capabilities: ["renderer"],
+        coreApiVersion: "v1",
+        enabled: true
+      }
+    ),
+    (error: unknown) => error instanceof AsterError && error.code === "TENANT_SCOPE_DENIED"
+  );
+});
+
 test("AT-AST-005 diff reports changed components", async () => {
   const { service } = makeService();
   const persona = await service.createPersona(baseContext("create-persona-5"), { name: "Tutor" });
