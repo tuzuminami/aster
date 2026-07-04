@@ -2,8 +2,12 @@
   "name": "@aster/persona-contract-compiler",
   "version": "0.1.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.30.2",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "pnpm run build && node --test dist/tests/*.test.js",

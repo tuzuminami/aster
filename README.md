@@ -18,6 +18,18 @@ This v0.1 foundation includes:
 
 Out of scope for this slice: chat UI, LLM inference, a plugin marketplace, and provider-specific prompt rendering.
 
+## Repository Quality Gates
+
+The default verification path is:
+
+```bash
+pnpm run check:private-boundary
+pnpm run build
+pnpm test
+```
+
+CI runs the same boundary, build, and test checks on pushes and pull requests.
+
 ## Quick Start
 
 ```bash
@@ -72,6 +84,13 @@ docker compose up postgres
 - Published Persona Contract versions cannot be mutated.
 - Audit events are append-only.
 - Tests and fixtures use synthetic data only.
+- Do not paste secrets, production conversation data, private prompts, or local operator material into issues, pull requests, fixtures, logs, or CI artifacts.
+
+## Contributing and Security
+
+- See `CONTRIBUTING.md` for development and pull request expectations.
+- See `SECURITY.md` for vulnerability reporting and data-handling expectations.
+- See `CODE_OF_CONDUCT.md` for participation standards.
 
 ## License
 
