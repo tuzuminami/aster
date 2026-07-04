@@ -1,1 +1,41 @@
-CODEX_AI_COMPANION_OSS_IMPLEMENTATION_HARNESS.md
+# Private/local operator material and generated local state.
+/.private/
+/.codex-private/
+/private-ai-control-plane/
+/CODEX_AI_COMPANION_OSS_IMPLEMENTATION_HARNESS.md
+/CODEX_IMPLEMENTATION_HARNESS.md
+/AGENTS_PRIVATE.md
+/README_PRIVATE.md
+/AGENTS.private.md
+/.serena/
+
+# Accidental in-repo copies of internal planning/specification material.
+/docs/00_GLOSSARY.md
+/docs/01_BMA.md
+/docs/02_StRS.md
+/docs/03_SyRS.md
+/docs/04_AD.md
+/docs/05_DD.md
+/docs/06_API_CONTRACT.md
+/docs/07_VV_PLAN.md
+/docs/08_TRACEABILITY.md
+/docs/09_MVP_BACKLOG.md
+/docs/10_RELEASE_CRITERIA.md
+/docs/ai/
+/docs/private/
+
+# Local data, build outputs, and private evidence.
+/.local-data/
+/evidence-private/
+/private-fixtures/
+*.private.md
+*.private.json
+*.private.yaml
+*.private.yml
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+!.env.example
+.DS_Store
