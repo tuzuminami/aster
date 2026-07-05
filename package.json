@@ -4,6 +4,23 @@
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
+  "main": "./dist/packages/core/src/index.js",
+  "types": "./dist/packages/core/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/packages/core/src/index.d.ts",
+      "default": "./dist/packages/core/src/index.js"
+    },
+    "./contracts/*": "./packages/contracts/*"
+  },
+  "files": [
+    "dist/packages",
+    "dist/apps",
+    "packages/contracts",
+    "db/migrations",
+    "README.md",
+    "LICENSE"
+  ],
   "packageManager": "pnpm@10.30.2",
   "engines": {
     "node": ">=22.18"

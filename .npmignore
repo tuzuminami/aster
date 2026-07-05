@@ -22,6 +22,8 @@ docs/private
 .local-data
 evidence-private
 private-fixtures
+.serena
+dist/tests
 *.private.md
 *.private.json
 *.private.yaml
