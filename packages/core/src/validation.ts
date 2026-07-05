@@ -41,11 +41,17 @@ export const parsePersonaContract = (input: unknown): PersonaContract => {
   });
 
   for (const component of components) {
-    for (const dependency of component.dependsOn ?? []) {
+    for (const dependency of "dependsOn" in component ? component.dependsOn : []) {
       if (!componentIds.has(dependency)) errors.push(`component ${component.id} depends on missing ${dependency}`);
     }
   }
-  detectCycles(components.map((component) => ({ id: component.id, dependsOn: component.dependsOn ?? [] })), errors);
+  detectCycles(
+    components.map((component) => ({
+      id: component.id,
+      dependsOn: "dependsOn" in component ? component.dependsOn : []
+    })),
+    errors
+  );
 
   const policyReferences = (value.policyReferences as unknown[]).map((policy, index) => {
     const item = asRecord(policy, `policyReferences[${index}]`);
@@ -99,7 +105,13 @@ export const parsePluginManifest = (input: unknown): PluginManifest => {
     }
   }
   if (errors.length > 0) throw validationError(errors);
-  return value as PluginManifest;
+  return {
+    name: String(value.name),
+    version: String(value.version),
+    capabilities: value.capabilities as readonly PluginManifest["capabilities"][number][],
+    coreApiVersion: "v1",
+    enabled: Boolean(value.enabled)
+  };
 };
 
 const asRecord = (value: unknown, label: string): Record<string, unknown> => {
