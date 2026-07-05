@@ -5,7 +5,8 @@ export type ErrorCode =
   | "VERSION_CONFLICT"
   | "IDEMPOTENCY_CONFLICT"
   | "RESOURCE_NOT_FOUND"
-  | "PLUGIN_INCOMPATIBLE";
+  | "PLUGIN_INCOMPATIBLE"
+  | "DEPENDENCY_UNAVAILABLE";
 
 export class AsterError extends Error {
   public readonly code: ErrorCode;

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 - 2026-07-05
+
+- Added the PostgreSQL adapter for personas, versions, compiled bundles, idempotency records, plugin manifests, and audit events.
+- Added migration runner and a second migration for plugin manifests.
+- Added optional PostgreSQL integration coverage and GitHub Actions PostgreSQL service verification.
+- Tightened package release contents for compiled runtime, contracts, migrations, and license files.
+
 ## 0.1.0 - 2026-07-05
 
 - Added the initial Persona Contract validation and deterministic compilation foundation.

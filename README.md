@@ -4,7 +4,7 @@ ASTER is a Persona Contract Compiler for conversational AI systems. It validates
 
 ## Current Scope
 
-This v0.1 foundation includes:
+This v0.2 foundation includes:
 
 - strict TypeScript domain/application boundaries;
 - Persona Contract validation;
@@ -14,7 +14,8 @@ This v0.1 foundation includes:
 - plugin reference validation that fails closed;
 - tenant-scoped access, idempotency records, and append-only audit events;
 - OpenAPI 3.1 and JSON Schema contract files;
-- a public private-boundary guard for release hygiene.
+- a public private-boundary guard for release hygiene;
+- a PostgreSQL adapter, migrations, and CI-backed PostgreSQL integration coverage.
 
 Out of scope for this slice: chat UI, LLM inference, a plugin marketplace, and provider-specific prompt rendering.
 
@@ -26,6 +27,8 @@ The default verification path is:
 pnpm run check:private-boundary
 pnpm run build
 pnpm test
+pnpm run test:compiled
+pnpm pack --dry-run
 ```
 
 CI runs the same boundary, build, and test checks on pushes and pull requests.
@@ -71,10 +74,19 @@ See `packages/contracts/openapi/openapi.yaml` and `packages/contracts/schemas/pe
 
 ## Local PostgreSQL
 
-The first public slice includes a PostgreSQL compose service and SQL migration in `db/migrations/001_init.sql`. The in-process adapter is used for deterministic local tests; the migration describes the durable tables expected for the PostgreSQL adapter.
+ASTER can run with the in-process adapter for deterministic development tests, or with PostgreSQL by setting `DATABASE_URL`.
 
 ```bash
 docker compose up postgres
+export DATABASE_URL=postgres://aster:aster_dev_password@127.0.0.1:5432/aster
+pnpm run db:migrate
+DATABASE_URL=$DATABASE_URL node apps/api/src/http.ts
+```
+
+Run the PostgreSQL integration test:
+
+```bash
+TEST_DATABASE_URL=postgres://aster:aster_dev_password@127.0.0.1:5432/aster pnpm run test:postgres
 ```
 
 ## Security and Data Notes

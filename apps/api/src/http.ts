@@ -3,8 +3,9 @@ import { AsterError } from "../../../packages/core/src/errors.ts";
 import { AsterService } from "../../../packages/core/src/service.ts";
 import type { RequestContext } from "../../../packages/core/src/types.ts";
 import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
+import { PostgresAsterStore } from "../../../packages/adapters/src/postgres-store.ts";
 
-const store = new InMemoryAsterStore();
+const store = process.env.DATABASE_URL ? new PostgresAsterStore(process.env.DATABASE_URL) : new InMemoryAsterStore();
 const service = new AsterService({
   repository: store,
   plugins: store,
