@@ -1,6 +1,6 @@
-import { AsterError } from "../../core/src/errors.js";
-import type { AuditLog, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.js";
-import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "../../core/src/types.js";
+import { AsterError } from "../../core/src/errors.ts";
+import type { AuditLog, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
+import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "../../core/src/types.ts";
 
 export class InMemoryAsterStore implements PersonaRepository, AuditLog, IdempotencyStore, PluginRegistry {
   private readonly personas = new Map<string, Persona>();

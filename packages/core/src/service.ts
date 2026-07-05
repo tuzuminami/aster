@@ -1,9 +1,9 @@
-import { sha256Hex } from "./canonical.js";
-import { compilePersonaContract } from "./compiler.js";
-import { AsterError } from "./errors.js";
-import type { AuditLog, Clock, IdGenerator, IdempotencyStore, PersonaRepository, PluginRegistry } from "./ports.js";
-import type { CompiledBundle, Persona, PersonaContract, PersonaDiff, PersonaVersion, PluginManifest, RequestContext } from "./types.js";
-import { assertPublished, parsePersonaContract, parsePluginManifest } from "./validation.js";
+import { sha256Hex } from "./canonical.ts";
+import { compilePersonaContract } from "./compiler.ts";
+import { AsterError } from "./errors.ts";
+import type { AuditLog, Clock, IdGenerator, IdempotencyStore, PersonaRepository, PluginRegistry } from "./ports.ts";
+import type { CompiledBundle, Persona, PersonaContract, PersonaDiff, PersonaVersion, PluginManifest, RequestContext } from "./types.ts";
+import { assertPublished, parsePersonaContract, parsePluginManifest } from "./validation.ts";
 
 export interface AsterServicePorts {
   readonly repository: PersonaRepository;

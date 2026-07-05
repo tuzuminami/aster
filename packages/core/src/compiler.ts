@@ -1,5 +1,5 @@
-import { canonicalJson, sha256Hex } from "./canonical.js";
-import type { CompiledBundle, PersonaContract } from "./types.js";
+import { canonicalJson, sha256Hex } from "./canonical.ts";
+import type { CompiledBundle, PersonaContract } from "./types.ts";
 
 export const COMPILER_VERSION = "aster-compiler/0.1.0";
 

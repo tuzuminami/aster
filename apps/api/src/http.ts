@@ -1,8 +1,8 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { AsterError } from "../../../packages/core/src/errors.js";
-import { AsterService } from "../../../packages/core/src/service.js";
-import type { RequestContext } from "../../../packages/core/src/types.js";
-import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.js";
+import { AsterError } from "../../../packages/core/src/errors.ts";
+import { AsterService } from "../../../packages/core/src/service.ts";
+import type { RequestContext } from "../../../packages/core/src/types.ts";
+import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
 
 const store = new InMemoryAsterStore();
 const service = new AsterService({
@@ -125,7 +125,7 @@ const send = (response: ServerResponse, status: number, body: unknown): void => 
   response.end(JSON.stringify(body));
 };
 
-if (process.argv[1]?.endsWith("http.js")) {
+if (process.argv[1]?.endsWith("http.ts") || process.argv[1]?.endsWith("http.js")) {
   const port = Number(process.env.PORT ?? "3000");
   createAsterServer().listen(port, () => {
     process.stdout.write(`ASTER API listening on ${port}\n`);

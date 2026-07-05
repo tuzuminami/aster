@@ -1,4 +1,4 @@
-import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "./types.js";
+import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "./types.ts";
 
 export interface Clock {
   nowIso(): string;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { AsterError, AsterService, type PersonaContract } from "../packages/core/src/index.js";
-import { DeterministicClock, InMemoryAsterStore, SequentialIdGenerator } from "../packages/adapters/src/memory-store.js";
+import { AsterError, AsterService, type PersonaContract } from "../packages/core/src/index.ts";
+import { DeterministicClock, InMemoryAsterStore, SequentialIdGenerator } from "../packages/adapters/src/memory-store.ts";
 
 const contract: PersonaContract = {
   schemaVersion: "1.0",

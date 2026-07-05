@@ -1,5 +1,5 @@
-import { AsterError, validationError } from "./errors.js";
-import type { PersonaContract, PluginManifest } from "./types.js";
+import { AsterError, validationError } from "./errors.ts";
+import type { PersonaContract, PluginManifest } from "./types.ts";
 
 const componentTypes = new Set(["instruction", "boundary", "context"]);
 const pluginCapabilities = new Set(["context_injector", "renderer"]);
