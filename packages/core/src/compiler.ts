@@ -26,7 +26,8 @@ export const compilePersonaContract = (
     instructions,
     boundaries,
     contextBlocks,
-    policyReferences: contract.policyReferences
+    policyReferences: contract.policyReferences,
+    pluginReferences: contract.plugins ?? []
   };
   const contentHash = sha256Hex(canonicalJson(body));
   return {
@@ -38,7 +39,8 @@ export const compilePersonaContract = (
       sourceContractHash,
       compiledAt,
       componentIds: contract.components.map((component) => component.id),
-      policyReferenceIds: contract.policyReferences.map((policy) => `${policy.id}@${policy.version}`)
+      policyReferenceIds: contract.policyReferences.map((policy) => `${policy.id}@${policy.version}`),
+      pluginReferenceIds: (contract.plugins ?? []).map((plugin) => `${plugin.name}@${plugin.version}:${plugin.capability}`)
     },
     context: {
       displayName: contract.persona.displayName,
@@ -46,7 +48,8 @@ export const compilePersonaContract = (
       instructions,
       boundaries,
       contextBlocks,
-      policyReferences: contract.policyReferences
+      policyReferences: contract.policyReferences,
+      pluginReferences: contract.plugins ?? []
     }
   };
 };

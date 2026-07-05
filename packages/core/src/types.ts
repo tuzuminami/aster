@@ -78,6 +78,7 @@ export interface CompiledBundle {
     readonly compiledAt: string;
     readonly componentIds: readonly string[];
     readonly policyReferenceIds: readonly string[];
+    readonly pluginReferenceIds: readonly string[];
   };
   readonly context: {
     readonly displayName: string;
@@ -86,6 +87,7 @@ export interface CompiledBundle {
     readonly boundaries: readonly string[];
     readonly contextBlocks: readonly string[];
     readonly policyReferences: readonly PolicyReference[];
+    readonly pluginReferences: readonly PluginReference[];
   };
 }
 

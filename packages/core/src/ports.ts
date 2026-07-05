@@ -31,8 +31,11 @@ export interface PersonaRepository {
 }
 
 export interface PluginRegistry {
-  validateReferences(references: readonly { name: string; version: string; capability: string }[]): Promise<void>;
-  validateManifest(manifest: PluginManifest): Promise<void>;
+  validateReferences(
+    tenantId: string,
+    references: readonly { name: string; version: string; capability: string }[]
+  ): Promise<void>;
+  validateManifest(tenantId: string, manifest: PluginManifest): Promise<void>;
 }
 
 export interface IdempotencyStore {

@@ -52,6 +52,16 @@ export const createAsterServer = () =>
           })
         });
       }
+      const diffMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/diff\/([0-9]+)$/);
+      if (request.method === "GET" && diffMatch?.[1] && diffMatch[2] && diffMatch[3]) {
+        return send(response, 200, {
+          data: await service.diffVersions(contextFrom(request), {
+            personaId: diffMatch[1],
+            fromVersion: Number(diffMatch[2]),
+            toVersion: Number(diffMatch[3])
+          })
+        });
+      }
       if (request.method === "POST" && url.pathname === "/v1/plugins/validate") {
         return send(response, 200, { data: await service.validatePlugin(contextFrom(request), await readJson(request)) });
       }

@@ -55,3 +55,18 @@ CREATE TABLE audit_events (
   after_hash TEXT,
   created_at TEXT NOT NULL
 );
+
+CREATE OR REPLACE FUNCTION deny_audit_events_mutation()
+RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_events is append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER audit_events_no_update
+BEFORE UPDATE ON audit_events
+FOR EACH ROW EXECUTE FUNCTION deny_audit_events_mutation();
+
+CREATE TRIGGER audit_events_no_delete
+BEFORE DELETE ON audit_events
+FOR EACH ROW EXECUTE FUNCTION deny_audit_events_mutation();

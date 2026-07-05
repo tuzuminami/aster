@@ -41,6 +41,8 @@ pnpm test
 pnpm run check:private-boundary
 ```
 
+The repository includes a synthetic Persona Contract fixture at `examples/persona-contract.json`.
+
 Run the development HTTP server:
 
 ```bash
@@ -61,7 +63,7 @@ Protected endpoints require:
 - `Authorization: Bearer <actor-id>`
 - `X-Tenant-Id: <tenant-id>`
 - `X-Correlation-Id: <optional correlation id>`
-- `Idempotency-Key: <write idempotency key, where relevant>`
+- `Idempotency-Key: <required for state-changing operations>`
 
 Primary flow:
 
@@ -69,6 +71,7 @@ Primary flow:
 2. `POST /v1/personas/{personaId}/versions`
 3. `POST /v1/personas/{personaId}/versions/{version}/publish`
 4. `POST /v1/personas/{personaId}/versions/{version}/compile`
+5. `GET /v1/personas/{personaId}/versions/{version}/diff/{otherVersion}`
 
 See `packages/contracts/openapi/openapi.yaml` and `packages/contracts/schemas/persona-contract.schema.json`.
 

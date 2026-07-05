@@ -17,6 +17,7 @@
     "dist/packages",
     "dist/apps",
     "packages/contracts",
+    "examples",
     "db/migrations",
     "scripts/migrate-postgres.ts",
     "README.md",

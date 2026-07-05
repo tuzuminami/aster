@@ -52,7 +52,7 @@ export class AsterService {
       const persona = await this.ports.repository.getPersona(context.tenantId, input.personaId);
       if (!persona) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona was not found.");
       const contract = parsePersonaContract(input.contract);
-      await this.ports.plugins.validateReferences(contract.plugins ?? []);
+      await this.ports.plugins.validateReferences(context.tenantId, contract.plugins ?? []);
       const now = this.ports.clock.nowIso();
       const personaVersion: PersonaVersion = {
         personaId: input.personaId,
@@ -83,28 +83,30 @@ export class AsterService {
     input: { readonly personaId: string; readonly version: number }
   ): Promise<PersonaVersion> {
     this.requireTenant(context);
-    const existing = await this.ports.repository.getVersion(context.tenantId, input.personaId, input.version);
-    if (!existing) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
-    if (existing.status !== "draft") {
-      throw new AsterError("VERSION_CONFLICT", 409, "Only draft persona versions can be published.");
-    }
-    const updated = await this.ports.repository.updateVersionStatus(
-      context.tenantId,
-      input.personaId,
-      input.version,
-      "published",
-      this.ports.clock.nowIso()
-    );
-    if (!updated) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
-    await this.audit(
-      context,
-      "persona_version.published",
-      "persona_version",
-      `${input.personaId}:${input.version}`,
-      existing.contentHash,
-      updated.contentHash
-    );
-    return updated;
+    return this.idempotent(context, `publishVersion:${input.personaId}:${input.version}`, async () => {
+      const existing = await this.ports.repository.getVersion(context.tenantId, input.personaId, input.version);
+      if (!existing) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
+      if (existing.status !== "draft") {
+        throw new AsterError("VERSION_CONFLICT", 409, "Only draft persona versions can be published.");
+      }
+      const updated = await this.ports.repository.updateVersionStatus(
+        context.tenantId,
+        input.personaId,
+        input.version,
+        "published",
+        this.ports.clock.nowIso()
+      );
+      if (!updated) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
+      await this.audit(
+        context,
+        "persona_version.published",
+        "persona_version",
+        `${input.personaId}:${input.version}`,
+        existing.contentHash,
+        updated.contentHash
+      );
+      return updated;
+    });
   }
 
   public async replacePublishedVersionContract(
@@ -126,26 +128,28 @@ export class AsterService {
     input: { readonly personaId: string; readonly version: number }
   ): Promise<CompiledBundle> {
     this.requireTenant(context);
-    const personaVersion = await this.ports.repository.getVersion(context.tenantId, input.personaId, input.version);
-    if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
-    assertPublished(personaVersion.status);
-    await this.ports.plugins.validateReferences(personaVersion.contract.plugins ?? []);
-    const bundle = compilePersonaContract(
-      input.personaId,
-      input.version,
-      personaVersion.contract,
-      this.ports.clock.nowIso()
-    );
-    await this.ports.repository.saveBundle(bundle, context.tenantId, context.actorId);
-    await this.audit(
-      context,
-      "persona_version.compiled",
-      "compiled_bundle",
-      `${input.personaId}:${input.version}`,
-      personaVersion.contentHash,
-      bundle.contentHash
-    );
-    return bundle;
+    return this.idempotent(context, `compileVersion:${input.personaId}:${input.version}`, async () => {
+      const personaVersion = await this.ports.repository.getVersion(context.tenantId, input.personaId, input.version);
+      if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
+      assertPublished(personaVersion.status);
+      await this.ports.plugins.validateReferences(context.tenantId, personaVersion.contract.plugins ?? []);
+      const bundle = compilePersonaContract(
+        input.personaId,
+        input.version,
+        personaVersion.contract,
+        this.ports.clock.nowIso()
+      );
+      await this.ports.repository.saveBundle(bundle, context.tenantId, context.actorId);
+      await this.audit(
+        context,
+        "persona_version.compiled",
+        "compiled_bundle",
+        `${input.personaId}:${input.version}`,
+        personaVersion.contentHash,
+        bundle.contentHash
+      );
+      return bundle;
+    });
   }
 
   public async diffVersions(
@@ -176,11 +180,16 @@ export class AsterService {
   public async validatePlugin(context: RequestContext, input: unknown): Promise<{ readonly valid: true }> {
     this.requireTenant(context);
     const manifest: PluginManifest = parsePluginManifest(input);
-    await this.ports.plugins.validateManifest(manifest);
-    return { valid: true };
+    return this.idempotent(context, `validatePlugin:${manifest.name}:${manifest.version}`, async () => {
+      await this.ports.plugins.validateManifest(context.tenantId, manifest);
+      return { valid: true };
+    });
   }
 
   private async idempotent<T>(context: RequestContext, operation: string, create: () => Promise<T>): Promise<T> {
+    if (!context.idempotencyKey) {
+      throw new AsterError("IDEMPOTENCY_CONFLICT", 409, "State-changing operations require an idempotency key.");
+    }
     const replayed = await this.ports.idempotency.replay<T>(context.tenantId, context.idempotencyKey, operation);
     if (replayed) return replayed;
     const response = await create();

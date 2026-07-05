@@ -49,6 +49,44 @@ test("AT-AST-001 primary persona flow compiles deterministic bundle and audits w
   assert.ok(audit.some((event) => event.action === "persona_version.compiled"));
 });
 
+test("AT-AST-007 draft versions cannot compile", async () => {
+  const { service } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-7"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-7"), { personaId: persona.id, contract });
+  await assert.rejects(
+    service.compileVersion(baseContext("compile-draft-7"), { personaId: persona.id, version: 1 }),
+    (error: unknown) => error instanceof AsterError && error.code === "VERSION_CONFLICT"
+  );
+});
+
+test("AT-AST-008 publish and compile idempotency prevent duplicate side effects", async () => {
+  const { service, store } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-8"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-8"), { personaId: persona.id, contract });
+
+  const publishContext = baseContext("publish-8");
+  const published = await service.publishVersion(publishContext, { personaId: persona.id, version: 1 });
+  const replayedPublished = await service.publishVersion(publishContext, { personaId: persona.id, version: 1 });
+  assert.equal(replayedPublished.status, published.status);
+
+  const compileContext = baseContext("compile-8");
+  const firstBundle = await service.compileVersion(compileContext, { personaId: persona.id, version: 1 });
+  const replayedBundle = await service.compileVersion(compileContext, { personaId: persona.id, version: 1 });
+  assert.equal(replayedBundle.contentHash, firstBundle.contentHash);
+
+  const audit = await store.listAuditEvents("tenant_a", `${persona.id}:1`);
+  assert.equal(audit.filter((event) => event.action === "persona_version.published").length, 1);
+  assert.equal(audit.filter((event) => event.action === "persona_version.compiled").length, 1);
+});
+
+test("AT-AST-009 state-changing operations require idempotency keys", async () => {
+  const { service } = makeService();
+  await assert.rejects(
+    service.createPersona({ tenantId: "tenant_a", actorId: "actor_a", correlationId: "corr_a" }, { name: "Tutor" }),
+    (error: unknown) => error instanceof AsterError && error.code === "IDEMPOTENCY_CONFLICT"
+  );
+});
+
 test("AT-AST-002 invalid contract and cyclic references fail closed", async () => {
   const { service } = makeService();
   const persona = await service.createPersona(baseContext("create-persona-2"), { name: "Tutor" });
@@ -105,6 +143,51 @@ test("AT-AST-004 tenant isolation and unknown plugin references fail closed", as
   );
 });
 
+test("AT-AST-010 compiled bundles preserve validated plugin references", async () => {
+  const { service } = makeService();
+  await service.validatePlugin(baseContext("plugin-10"), {
+    name: "renderer",
+    version: "1.0.0",
+    capabilities: ["renderer"],
+    coreApiVersion: "v1",
+    enabled: true
+  });
+  const persona = await service.createPersona(baseContext("create-persona-10"), { name: "Tutor" });
+  const pluginContract: PersonaContract = {
+    ...contract,
+    plugins: [{ name: "renderer", version: "1.0.0", capability: "renderer" }]
+  };
+  await service.createVersion(baseContext("create-version-10"), { personaId: persona.id, contract: pluginContract });
+  await service.publishVersion(baseContext("publish-10"), { personaId: persona.id, version: 1 });
+
+  const bundle = await service.compileVersion(baseContext("compile-10"), { personaId: persona.id, version: 1 });
+  assert.deepEqual(bundle.context.pluginReferences, pluginContract.plugins);
+  assert.deepEqual(bundle.provenance.pluginReferenceIds, ["renderer@1.0.0:renderer"]);
+});
+
+test("AT-AST-012 plugin registry is tenant scoped", async () => {
+  const { service } = makeService();
+  await service.validatePlugin(tenantContext("tenant_b", "plugin-12b"), {
+    name: "renderer",
+    version: "1.0.0",
+    capabilities: ["renderer"],
+    coreApiVersion: "v1",
+    enabled: true
+  });
+
+  const persona = await service.createPersona(baseContext("create-persona-12"), { name: "Tutor" });
+  await assert.rejects(
+    service.createVersion(baseContext("create-version-12"), {
+      personaId: persona.id,
+      contract: {
+        ...contract,
+        plugins: [{ name: "renderer", version: "1.0.0", capability: "renderer" }]
+      }
+    }),
+    (error: unknown) => error instanceof AsterError && error.code === "PLUGIN_INCOMPATIBLE"
+  );
+});
+
 test("AT-AST-006 plugin validation requires tenant context", async () => {
   const { service } = makeService();
   await assert.rejects(
@@ -154,6 +237,13 @@ const makeService = () => {
 
 const baseContext = (idempotencyKey: string) => ({
   tenantId: "tenant_a",
+  actorId: "actor_a",
+  correlationId: "corr_a",
+  idempotencyKey
+});
+
+const tenantContext = (tenantId: string, idempotencyKey: string) => ({
+  tenantId,
   actorId: "actor_a",
   correlationId: "corr_a",
   idempotencyKey

@@ -186,14 +186,15 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
   }
 
   public async validateReferences(
+    tenantId: string,
     references: readonly { name: string; version: string; capability: string }[]
   ): Promise<void> {
     for (const reference of references) {
       const result = await this.query<{ capabilities: readonly string[]; enabled: boolean }>(
         `SELECT capabilities, enabled
-         FROM plugin_manifests
-         WHERE tenant_id = $1 AND name = $2 AND version = $3`,
-        ["global", reference.name, reference.version]
+       FROM plugin_manifests
+       WHERE tenant_id = $1 AND name = $2 AND version = $3`,
+        [tenantId, reference.name, reference.version]
       );
       const manifest = result.rows[0];
       if (!manifest?.enabled || !manifest.capabilities.includes(reference.capability)) {
@@ -202,7 +203,7 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
     }
   }
 
-  public async validateManifest(manifest: PluginManifest): Promise<void> {
+  public async validateManifest(tenantId: string, manifest: PluginManifest): Promise<void> {
     if (!manifest.enabled) {
       throw new AsterError("PLUGIN_INCOMPATIBLE", 422, "Plugin must be enabled before use.");
     }
@@ -215,7 +216,7 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
                      enabled = EXCLUDED.enabled,
                      updated_at = EXCLUDED.updated_at`,
       [
-        "global",
+        tenantId,
         manifest.name,
         manifest.version,
         JSON.stringify(manifest.capabilities),

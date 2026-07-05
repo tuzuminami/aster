@@ -79,10 +79,11 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
   }
 
   public async validateReferences(
+    tenantId: string,
     references: readonly { name: string; version: string; capability: string }[]
   ): Promise<void> {
     for (const reference of references) {
-      const manifest = this.plugins.get(`${reference.name}@${reference.version}`);
+      const manifest = this.plugins.get(`${tenantId}:${reference.name}@${reference.version}`);
       if (
         !manifest ||
         !manifest.enabled ||
@@ -93,11 +94,11 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     }
   }
 
-  public async validateManifest(manifest: PluginManifest): Promise<void> {
+  public async validateManifest(tenantId: string, manifest: PluginManifest): Promise<void> {
     if (!manifest.enabled) {
       throw new AsterError("PLUGIN_INCOMPATIBLE", 422, "Plugin must be enabled before use.");
     }
-    this.plugins.set(`${manifest.name}@${manifest.version}`, manifest);
+    this.plugins.set(`${tenantId}:${manifest.name}@${manifest.version}`, manifest);
   }
 }
 
