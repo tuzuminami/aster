@@ -5,76 +5,107 @@ import type { RequestContext } from "../../../packages/core/src/types.ts";
 import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
 import { PostgresAsterStore } from "../../../packages/adapters/src/postgres-store.ts";
 
-const store = process.env.DATABASE_URL ? new PostgresAsterStore(process.env.DATABASE_URL) : new InMemoryAsterStore();
-const service = new AsterService({
-  repository: store,
-  plugins: store,
-  idempotency: store,
-  audit: store,
-  clock: new SystemClock(),
-  ids: new SequentialIdGenerator()
-});
+export interface AsterServerOptions {
+  readonly service?: AsterService;
+}
 
-export const createAsterServer = () =>
-  createServer(async (request, response) => {
-    try {
-      const url = new URL(request.url ?? "/", "http://localhost");
-      if (request.method === "GET" && url.pathname === "/health") {
-        return send(response, 200, { data: { ok: true } });
-      }
-      if (request.method === "POST" && url.pathname === "/v1/personas") {
-        return send(response, 201, { data: await service.createPersona(contextFrom(request), parseCreatePersona(await readJson(request))) });
-      }
-      const versionMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions$/);
-      if (request.method === "POST" && versionMatch?.[1]) {
-        return send(response, 201, {
-          data: await service.createVersion(contextFrom(request), {
-            personaId: versionMatch[1],
-            contract: parseCreateVersion(await readJson(request)).contract
-          })
-        });
-      }
-      const publishMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/publish$/);
-      if (request.method === "POST" && publishMatch?.[1] && publishMatch[2]) {
-        return send(response, 200, {
-          data: await service.publishVersion(contextFrom(request), {
-            personaId: publishMatch[1],
-            version: Number(publishMatch[2])
-          })
-        });
-      }
-      const compileMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/compile$/);
-      if (request.method === "POST" && compileMatch?.[1] && compileMatch[2]) {
-        return send(response, 200, {
-          data: await service.compileVersion(contextFrom(request), {
-            personaId: compileMatch[1],
-            version: Number(compileMatch[2])
-          })
-        });
-      }
-      const diffMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/diff\/([0-9]+)$/);
-      if (request.method === "GET" && diffMatch?.[1] && diffMatch[2] && diffMatch[3]) {
-        return send(response, 200, {
-          data: await service.diffVersions(contextFrom(request), {
-            personaId: diffMatch[1],
-            fromVersion: Number(diffMatch[2]),
-            toVersion: Number(diffMatch[3])
-          })
-        });
-      }
-      if (request.method === "POST" && url.pathname === "/v1/plugins/validate") {
-        return send(response, 200, { data: await service.validatePlugin(contextFrom(request), await readJson(request)) });
-      }
-      return send(response, 404, { error: { code: "RESOURCE_NOT_FOUND", message: "Route was not found." } });
-    } catch (error) {
-      if (error instanceof AsterError) {
-        return send(response, error.status, { error: { code: error.code, message: error.message, details: error.details } });
-      }
-      return send(response, 500, { error: { code: "INTERNAL_ERROR", message: "Unexpected failure." } });
-    }
+export type AsterIncomingRequest = AsyncIterable<Buffer | string> & {
+  readonly method?: string | undefined;
+  readonly url?: string | undefined;
+  readonly headers: IncomingMessage["headers"];
+};
+
+export interface AsterOutgoingResponse {
+  writeHead(status: number, headers: Record<string, string>): void;
+  end(body: string): void;
+}
+
+let defaultService: AsterService | undefined;
+
+export const createAsterServer = (options: AsterServerOptions = {}) => {
+  const service = options.service ?? getDefaultService();
+  return createServer((request, response) => {
+    void handleAsterRequest(service, request, response);
   });
+};
 
-const contextFrom = (request: IncomingMessage): RequestContext => {
+export const handleAsterRequest = async (
+  service: AsterService,
+  request: AsterIncomingRequest,
+  response: AsterOutgoingResponse
+): Promise<void> => {
+  try {
+    const url = new URL(request.url ?? "/", "http://localhost");
+    if (request.method === "GET" && url.pathname === "/health") {
+      return send(response, 200, { data: { ok: true } });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/personas") {
+      return send(response, 201, { data: await service.createPersona(contextFrom(request), parseCreatePersona(await readJson(request))) });
+    }
+    const versionMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions$/);
+    if (request.method === "POST" && versionMatch?.[1]) {
+      return send(response, 201, {
+        data: await service.createVersion(contextFrom(request), {
+          personaId: versionMatch[1],
+          contract: parseCreateVersion(await readJson(request)).contract
+        })
+      });
+    }
+    const publishMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/publish$/);
+    if (request.method === "POST" && publishMatch?.[1] && publishMatch[2]) {
+      return send(response, 200, {
+        data: await service.publishVersion(contextFrom(request), {
+          personaId: publishMatch[1],
+          version: Number(publishMatch[2])
+        })
+      });
+    }
+    const compileMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/compile$/);
+    if (request.method === "POST" && compileMatch?.[1] && compileMatch[2]) {
+      return send(response, 200, {
+        data: await service.compileVersion(contextFrom(request), {
+          personaId: compileMatch[1],
+          version: Number(compileMatch[2])
+        })
+      });
+    }
+    const diffMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/diff\/([0-9]+)$/);
+    if (request.method === "GET" && diffMatch?.[1] && diffMatch[2] && diffMatch[3]) {
+      return send(response, 200, {
+        data: await service.diffVersions(contextFrom(request), {
+          personaId: diffMatch[1],
+          fromVersion: Number(diffMatch[2]),
+          toVersion: Number(diffMatch[3])
+        })
+      });
+    }
+    if (request.method === "POST" && url.pathname === "/v1/plugins/validate") {
+      return send(response, 200, { data: await service.validatePlugin(contextFrom(request), await readJson(request)) });
+    }
+    return send(response, 404, { error: { code: "RESOURCE_NOT_FOUND", message: "Route was not found." } });
+  } catch (error) {
+    if (error instanceof AsterError) {
+      return send(response, error.status, { error: { code: error.code, message: error.message, details: error.details } });
+    }
+    return send(response, 500, { error: { code: "INTERNAL_ERROR", message: "Unexpected failure." } });
+  }
+};
+
+const getDefaultService = (): AsterService => {
+  if (defaultService) return defaultService;
+  const store = process.env.DATABASE_URL ? new PostgresAsterStore(process.env.DATABASE_URL) : new InMemoryAsterStore();
+  defaultService = new AsterService({
+    repository: store,
+    plugins: store,
+    idempotency: store,
+    audit: store,
+    clock: new SystemClock(),
+    ids: new SequentialIdGenerator()
+  });
+  return defaultService;
+};
+
+const contextFrom = (request: AsterIncomingRequest): RequestContext => {
   const auth = request.headers.authorization;
   if (!auth?.startsWith("Bearer ")) {
     throw new AsterError("AUTHENTICATION_REQUIRED", 401, "Authentication is required.");
@@ -91,13 +122,13 @@ const contextFrom = (request: IncomingMessage): RequestContext => {
   };
 };
 
-const header = (request: IncomingMessage, name: string): string => {
+const header = (request: AsterIncomingRequest, name: string): string => {
   const value = request.headers[name]?.toString();
   if (!value) throw new AsterError("TENANT_SCOPE_DENIED", 403, "Request cannot access this resource.");
   return value;
 };
 
-const readJson = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
+const readJson = async (request: AsterIncomingRequest): Promise<Record<string, unknown>> => {
   const contentType = request.headers["content-type"]?.toString();
   if (request.method !== "GET" && contentType !== undefined && !contentType.includes("application/json")) {
     throw new AsterError("VALIDATION_FAILED", 422, "Request validation failed.", ["content-type must be application/json"]);
@@ -131,7 +162,7 @@ const parseCreateVersion = (body: Record<string, unknown>): { readonly contract:
   return { contract: body.contract };
 };
 
-const send = (response: ServerResponse, status: number, body: unknown): void => {
+const send = (response: AsterOutgoingResponse, status: number, body: unknown): void => {
   response.writeHead(status, { "content-type": "application/json" });
   response.end(JSON.stringify(body));
 };

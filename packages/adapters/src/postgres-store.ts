@@ -1,6 +1,6 @@
 import { Pool, type PoolClient } from "pg";
 import { AsterError } from "../../core/src/errors.ts";
-import type { AuditLog, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
+import type { AuditLog, BundleSaveResult, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
 import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "../../core/src/types.ts";
 
 export class PostgresAsterStore implements PersonaRepository, AuditLog, IdempotencyStore, PluginRegistry {
@@ -97,13 +97,13 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
     return result.rows[0] ? versionFromRow(result.rows[0]) : undefined;
   }
 
-  public async saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<void> {
-    await this.query(
+  public async saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<BundleSaveResult> {
+    const result = await this.query<{ inserted: number }>(
       `INSERT INTO compiled_bundles
          (tenant_id, persona_id, version, compiler_version, content_hash, bundle_json, created_at, created_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       ON CONFLICT (tenant_id, persona_id, version, compiler_version)
-       DO UPDATE SET content_hash = EXCLUDED.content_hash, bundle_json = EXCLUDED.bundle_json`,
+       ON CONFLICT (tenant_id, persona_id, version, compiler_version) DO NOTHING
+       RETURNING 1 AS inserted`,
       [
         tenantId,
         bundle.personaId,
@@ -115,6 +115,7 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
         actorId
       ]
     );
+    return result.rows[0] ? "created" : "existing";
   }
 
   public async getBundle(

@@ -1,5 +1,5 @@
 import { sha256Hex } from "./canonical.ts";
-import { compilePersonaContract } from "./compiler.ts";
+import { COMPILER_VERSION, compilePersonaContract } from "./compiler.ts";
 import { AsterError } from "./errors.ts";
 import type { AuditLog, Clock, IdGenerator, IdempotencyStore, PersonaRepository, PluginRegistry } from "./ports.ts";
 import type { CompiledBundle, Persona, PersonaContract, PersonaDiff, PersonaVersion, PluginManifest, RequestContext } from "./types.ts";
@@ -133,21 +133,30 @@ export class AsterService {
       if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
       assertPublished(personaVersion.status);
       await this.ports.plugins.validateReferences(context.tenantId, personaVersion.contract.plugins ?? []);
+      const existingBundle = await this.ports.repository.getBundle(
+        context.tenantId,
+        input.personaId,
+        input.version,
+        COMPILER_VERSION
+      );
+      if (existingBundle) return existingBundle;
       const bundle = compilePersonaContract(
         input.personaId,
         input.version,
         personaVersion.contract,
-        this.ports.clock.nowIso()
+        personaVersion.updatedAt
       );
-      await this.ports.repository.saveBundle(bundle, context.tenantId, context.actorId);
-      await this.audit(
-        context,
-        "persona_version.compiled",
-        "compiled_bundle",
-        `${input.personaId}:${input.version}`,
-        personaVersion.contentHash,
-        bundle.contentHash
-      );
+      const saveResult = await this.ports.repository.saveBundle(bundle, context.tenantId, context.actorId);
+      if (saveResult === "created") {
+        await this.audit(
+          context,
+          "persona_version.compiled",
+          "compiled_bundle",
+          `${input.personaId}:${input.version}`,
+          personaVersion.contentHash,
+          bundle.contentHash
+        );
+      }
       return bundle;
     });
   }

@@ -1,5 +1,7 @@
 import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "./types.ts";
 
+export type BundleSaveResult = "created" | "existing";
+
 export interface Clock {
   nowIso(): string;
 }
@@ -20,7 +22,7 @@ export interface PersonaRepository {
     status: PersonaVersion["status"],
     updatedAt: string
   ): Promise<PersonaVersion | undefined>;
-  saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<void>;
+  saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<BundleSaveResult>;
   getBundle(
     tenantId: string,
     personaId: string,

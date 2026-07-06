@@ -71,8 +71,16 @@ test("AT-AST-008 publish and compile idempotency prevent duplicate side effects"
 
   const compileContext = baseContext("compile-8");
   const firstBundle = await service.compileVersion(compileContext, { personaId: persona.id, version: 1 });
+  (firstBundle.context.instructions as string[])[0] = "mutated outside the store";
   const replayedBundle = await service.compileVersion(compileContext, { personaId: persona.id, version: 1 });
   assert.equal(replayedBundle.contentHash, firstBundle.contentHash);
+  assert.equal(replayedBundle.context.instructions[0], "Answer with concrete examples.");
+  const existingBundle = await service.compileVersion(baseContext("compile-8-existing"), {
+    personaId: persona.id,
+    version: 1
+  });
+  assert.equal(existingBundle.contentHash, firstBundle.contentHash);
+  assert.equal(existingBundle.context.instructions[0], "Answer with concrete examples.");
 
   const audit = await store.listAuditEvents("tenant_a", `${persona.id}:1`);
   assert.equal(audit.filter((event) => event.action === "persona_version.published").length, 1);

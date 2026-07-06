@@ -1,5 +1,5 @@
 import { AsterError } from "../../core/src/errors.ts";
-import type { AuditLog, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
+import type { AuditLog, BundleSaveResult, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
 import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "../../core/src/types.ts";
 
 export class InMemoryAsterStore implements PersonaRepository, AuditLog, IdempotencyStore, PluginRegistry {
@@ -46,9 +46,12 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     return updated;
   }
 
-  public async saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<void> {
+  public async saveBundle(bundle: CompiledBundle, tenantId: string, actorId: string): Promise<BundleSaveResult> {
     void actorId;
-    this.bundles.set(`${tenantId}:${bundle.personaId}:${bundle.version}:${bundle.compilerVersion}`, bundle);
+    const bundleKey = `${tenantId}:${bundle.personaId}:${bundle.version}:${bundle.compilerVersion}`;
+    if (this.bundles.has(bundleKey)) return "existing";
+    this.bundles.set(bundleKey, structuredClone(bundle));
+    return "created";
   }
 
   public async getBundle(
@@ -57,7 +60,8 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     version: number,
     compilerVersion: string
   ): Promise<CompiledBundle | undefined> {
-    return this.bundles.get(`${tenantId}:${personaId}:${version}:${compilerVersion}`);
+    const bundle = this.bundles.get(`${tenantId}:${personaId}:${version}:${compilerVersion}`);
+    return bundle ? structuredClone(bundle) : undefined;
   }
 
   public async listAuditEvents(tenantId: string, resourceId: string): Promise<readonly AuditEvent[]> {
@@ -70,12 +74,13 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
 
   public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string): Promise<T | undefined> {
     if (!idempotencyKey) return undefined;
-    return this.idempotency.get(`${tenantId}:${operation}:${idempotencyKey}`) as T | undefined;
+    const response = this.idempotency.get(`${tenantId}:${operation}:${idempotencyKey}`);
+    return response === undefined ? undefined : structuredClone(response as T);
   }
 
   public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, response: T): Promise<void> {
     if (!idempotencyKey) return;
-    this.idempotency.set(`${tenantId}:${operation}:${idempotencyKey}`, response);
+    this.idempotency.set(`${tenantId}:${operation}:${idempotencyKey}`, structuredClone(response));
   }
 
   public async validateReferences(

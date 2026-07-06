@@ -1,11 +1,12 @@
 CREATE TABLE personas (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   tenant_id TEXT NOT NULL,
   name TEXT NOT NULL,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  version INTEGER NOT NULL
+  version INTEGER NOT NULL,
+  PRIMARY KEY (tenant_id, id)
 );
 
 CREATE TABLE persona_versions (

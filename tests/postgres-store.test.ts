@@ -32,7 +32,12 @@ test("AT-AST-PG-001 PostgreSQL adapter persists compile flow with tenant isolati
     assert.equal(version.version, 1);
     await service.publishVersion(context, { personaId: persona.id, version: 1 });
     const bundle = await service.compileVersion(context, { personaId: persona.id, version: 1 });
+    const existingBundle = await service.compileVersion(
+      { ...context, idempotencyKey: "compile-existing" },
+      { personaId: persona.id, version: 1 }
+    );
     assert.equal(bundle.personaId, persona.id);
+    assert.deepEqual(existingBundle, bundle);
     await assert.rejects(
       service.createVersion(
         { tenantId: "other_tenant", actorId: "actor_pg", correlationId: "corr_pg", idempotencyKey: "wrong-tenant" },
@@ -40,7 +45,7 @@ test("AT-AST-PG-001 PostgreSQL adapter persists compile flow with tenant isolati
       )
     );
     const audit = await store.listAuditEvents(context.tenantId, `${persona.id}:1`);
-    assert.ok(audit.some((event) => event.action === "persona_version.compiled"));
+    assert.equal(audit.filter((event) => event.action === "persona_version.compiled").length, 1);
   } finally {
     await store.close();
   }
