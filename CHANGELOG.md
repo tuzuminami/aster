@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0 - 2026-07-13
+
+- Finalized ASTER as the portable Persona Contract Compiler support module.
+- Added deterministic compile/version behavior, tenant-scoped PostgreSQL storage,
+  idempotency, HTTP contract coverage, and public package boundary verification.
+
 ## 0.2.0 - 2026-07-05
 
 - Added the PostgreSQL adapter for personas, versions, compiled bundles, idempotency records, plugin manifests, and audit events.
