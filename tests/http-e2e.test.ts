@@ -268,6 +268,7 @@ const makeService = (plugins?: PluginRegistry) => {
     plugins: plugins ?? store,
     idempotency: store,
     audit: store,
+    transactions: store,
     clock: new DeterministicClock("2026-07-06T00:00:00.000Z"),
     ids: new SequentialIdGenerator()
   });

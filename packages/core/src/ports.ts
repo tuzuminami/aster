@@ -48,3 +48,19 @@ export interface IdempotencyStore {
 export interface AuditLog {
   append(event: AuditEvent): Promise<void>;
 }
+
+export interface AtomicMutationPorts {
+  readonly repository: PersonaRepository;
+  readonly audit: AuditLog;
+  readonly idempotency: IdempotencyStore;
+}
+
+export interface AtomicMutationScope {
+  readonly tenantId: string;
+  readonly idempotencyKey: string;
+  readonly operation: string;
+}
+
+export interface AtomicMutationStore {
+  runAtomically<T>(scope: AtomicMutationScope, operation: (ports: AtomicMutationPorts) => Promise<T>): Promise<T>;
+}

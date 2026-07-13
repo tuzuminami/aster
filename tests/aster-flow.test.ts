@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AsterError, AsterService, type PersonaContract } from "../packages/core/src/index.ts";
-import { DeterministicClock, InMemoryAsterStore, SequentialIdGenerator } from "../packages/adapters/src/memory-store.ts";
+import { CryptoIdGenerator, DeterministicClock, InMemoryAsterStore, SequentialIdGenerator } from "../packages/adapters/src/memory-store.ts";
 
 const contract: PersonaContract = {
   schemaVersion: "1.0",
@@ -230,6 +230,33 @@ test("AT-AST-005 diff reports changed components", async () => {
   assert.deepEqual(diff.changedComponents, ["extra"]);
 });
 
+test("AT-AST-017 rolls resource and idempotency state back when audit insertion fails", async () => {
+  const store = new FailingAuditStore();
+  const service = new AsterService({
+    repository: store, plugins: store, idempotency: store, audit: store, transactions: store,
+    clock: new DeterministicClock(), ids: new SequentialIdGenerator()
+  });
+  await assert.rejects(service.createPersona(baseContext("atomic-audit-failure"), { name: "Must roll back" }));
+  assert.equal(await store.getPersona("tenant_a", "per_000001"), undefined);
+  await assert.rejects(service.createPersona(baseContext("atomic-audit-failure"), { name: "Must still fail" }));
+  assert.equal(await store.getPersona("tenant_a", "per_000002"), undefined);
+});
+
+test("AT-AST-018 crypto IDs do not collide across independent generators", () => {
+  const first = new CryptoIdGenerator();
+  const second = new CryptoIdGenerator();
+  const ids = new Set<string>();
+  for (let index = 0; index < 2_000; index += 1) ids.add(first.nextId("per"));
+  for (let index = 0; index < 2_000; index += 1) ids.add(second.nextId("per"));
+  assert.equal(ids.size, 4_000);
+});
+
+class FailingAuditStore extends InMemoryAsterStore {
+  public override async append(): Promise<void> {
+    throw new Error("injected audit failure");
+  }
+}
+
 const makeService = () => {
   const store = new InMemoryAsterStore();
   const service = new AsterService({
@@ -237,6 +264,7 @@ const makeService = () => {
     plugins: store,
     idempotency: store,
     audit: store,
+    transactions: store,
     clock: new DeterministicClock(),
     ids: new SequentialIdGenerator()
   });

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { AsterError } from "../../../packages/core/src/errors.ts";
 import { AsterService } from "../../../packages/core/src/service.ts";
 import type { RequestContext } from "../../../packages/core/src/types.ts";
-import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
+import { CryptoIdGenerator, InMemoryAsterStore, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
 import { PostgresAsterStore } from "../../../packages/adapters/src/postgres-store.ts";
 import { assertScope, createDevelopmentAuthAdapter, type AsterAuthAdapter } from "./auth.ts";
 
@@ -106,7 +106,8 @@ const getDefaultService = (): AsterService => {
     idempotency: store,
     audit: store,
     clock: new SystemClock(),
-    ids: new SequentialIdGenerator()
+    ids: new CryptoIdGenerator(),
+    transactions: store
   });
   return defaultService;
 };

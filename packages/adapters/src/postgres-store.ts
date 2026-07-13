@@ -1,10 +1,12 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Pool, type PoolClient } from "pg";
 import { AsterError } from "../../core/src/errors.ts";
-import type { AuditLog, BundleSaveResult, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
+import type { AtomicMutationPorts, AtomicMutationScope, AtomicMutationStore, AuditLog, BundleSaveResult, IdempotencyStore, PersonaRepository, PluginRegistry } from "../../core/src/ports.ts";
 import type { AuditEvent, CompiledBundle, Persona, PersonaVersion, PluginManifest } from "../../core/src/types.ts";
 
-export class PostgresAsterStore implements PersonaRepository, AuditLog, IdempotencyStore, PluginRegistry {
+export class PostgresAsterStore implements PersonaRepository, AuditLog, IdempotencyStore, PluginRegistry, AtomicMutationStore {
   private readonly pool: Pool;
+  private readonly transactionClient = new AsyncLocalStorage<PoolClient>();
 
   public constructor(connectionString: string) {
     this.pool = new Pool({
@@ -20,6 +22,26 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
 
   public async close(): Promise<void> {
     await this.pool.end();
+  }
+
+  public async runAtomically<T>(scope: AtomicMutationScope, operation: (ports: AtomicMutationPorts) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [`aster:idempotency:${scope.tenantId}:${scope.idempotencyKey}:${scope.operation}`]
+      );
+      const result = await this.transactionClient.run(client, async () => operation({ repository: this, audit: this, idempotency: this }));
+      await client.query("COMMIT");
+      return result;
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      if (error instanceof AsterError) throw error;
+      throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Database transaction failed.");
+    } finally {
+      client.release();
+    }
   }
 
   public async createPersona(persona: Persona): Promise<void> {
@@ -42,6 +64,10 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
 
   public async createVersion(version: PersonaVersion): Promise<PersonaVersion> {
     return this.transaction(async (client) => {
+      await client.query(
+        "SELECT pg_advisory_xact_lock(hashtext($1))",
+        [`aster:persona-version:${version.tenantId}:${version.personaId}`]
+      );
       const next = await client.query<{ next_version: number }>(
         `SELECT COALESCE(MAX(version), 0) + 1 AS next_version
          FROM persona_versions
@@ -230,21 +256,25 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
 
   private async query<T extends Record<string, unknown>>(text: string, values: readonly unknown[]) {
     try {
-      return await this.pool.query<T>(text, [...values]);
+      const client = this.transactionClient.getStore();
+      return client ? await client.query<T>(text, [...values]) : await this.pool.query<T>(text, [...values]);
     } catch {
       throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Database operation failed.");
     }
   }
 
   private async transaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
+    const existing = this.transactionClient.getStore();
+    if (existing) return fn(existing);
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
       const result = await fn(client);
       await client.query("COMMIT");
       return result;
-    } catch {
+    } catch (error) {
       await client.query("ROLLBACK");
+      if (error instanceof AsterError) throw error;
       throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Database transaction failed.");
     } finally {
       client.release();
