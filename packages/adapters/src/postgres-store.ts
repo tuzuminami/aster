@@ -192,24 +192,29 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
     );
   }
 
-  public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string): Promise<T | undefined> {
+  public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, requestHash: string): Promise<T | undefined> {
     if (!idempotencyKey) return undefined;
-    const result = await this.query<{ response_json: string | T }>(
-      `SELECT response_json
+    const result = await this.query<{ response_json: string | T; request_hash: string }>(
+      `SELECT response_json, request_hash
        FROM idempotency_records
        WHERE tenant_id = $1 AND key = $2 AND operation = $3`,
       [tenantId, idempotencyKey, operation]
     );
-    return result.rows[0] ? parseJson<T>(result.rows[0].response_json) : undefined;
+    const record = result.rows[0];
+    if (!record) return undefined;
+    if (record.request_hash !== requestHash) {
+      throw new AsterError("IDEMPOTENCY_CONFLICT", 409, "Idempotency key was already used for a different request.");
+    }
+    return parseJson<T>(record.response_json);
   }
 
-  public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, response: T): Promise<void> {
+  public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, requestHash: string, response: T): Promise<void> {
     if (!idempotencyKey) return;
     await this.query(
-      `INSERT INTO idempotency_records (tenant_id, key, operation, response_json, created_at)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO idempotency_records (tenant_id, key, operation, request_hash, response_json, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (tenant_id, key, operation) DO NOTHING`,
-      [tenantId, idempotencyKey, operation, JSON.stringify(response), new Date().toISOString()]
+      [tenantId, idempotencyKey, operation, requestHash, JSON.stringify(response), new Date().toISOString()]
     );
   }
 

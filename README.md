@@ -62,7 +62,7 @@ This v0.2 foundation includes:
 - immutable publication of a persona version;
 - deterministic compilation with a stable content hash;
 - plugin reference validation that fails closed;
-- tenant-scoped access, idempotency records, and append-only audit events;
+- tenant-scoped access, request-bound idempotency records, and append-only audit events;
 - OpenAPI 3.1 and JSON Schema contract files;
 - a public private-boundary guard for release hygiene;
 - a PostgreSQL adapter, migrations, and CI-backed PostgreSQL integration coverage.
@@ -118,6 +118,8 @@ assertion, and rejects the development adapter and a wildcard network binding.
 - `X-Tenant-Id: <optional consistency check>`
 - `X-Correlation-Id: <optional correlation id>`
 - `Idempotency-Key: <required for state-changing operations>`
+
+An idempotency key is bound to the authenticated actor and canonical request input. Retrying the same request is stable; reusing a key for a different payload or resource returns `409 IDEMPOTENCY_CONFLICT`.
 
 Primary flow:
 

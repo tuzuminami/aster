@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Pool } from "pg";
-import { AsterService, type PersonaContract } from "../packages/core/src/index.ts";
+import { AsterError, AsterService, type PersonaContract } from "../packages/core/src/index.ts";
 import { CryptoIdGenerator, DeterministicClock, SequentialIdGenerator } from "../packages/adapters/src/memory-store.ts";
 import { PostgresAsterStore } from "../packages/adapters/src/postgres-store.ts";
 
@@ -85,6 +85,10 @@ test("AT-AST-PG-002 PostgreSQL idempotency is serialized across replicas and res
     const replayed = await createService(thirdStore).createPersona(context, { name: "Atomic replica" });
     assert.deepEqual(replayed, first);
     assert.equal((await secondStore.listAuditEvents(context.tenantId, first.id)).length, 1);
+    await assert.rejects(
+      createService(thirdStore).createPersona(context, { name: "Changed after restart" }),
+      (error: unknown) => error instanceof AsterError && error.code === "IDEMPOTENCY_CONFLICT"
+    );
   } finally {
     await Promise.allSettled([firstStore.close(), secondStore.close(), thirdStore.close()]);
   }
