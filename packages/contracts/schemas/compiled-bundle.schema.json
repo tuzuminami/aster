@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tuzuminami.github.io/aster/contracts/compiled-bundle/1.0.0/schema.json",
+  "title": "ASTER CompiledBundle",
+  "type": "object",
+  "required": ["personaId", "version", "compilerVersion", "contentHash", "provenance", "context"],
+  "properties": {
+    "personaId": { "type": "string", "minLength": 1 },
+    "version": { "type": "integer", "minimum": 1 },
+    "compilerVersion": { "type": "string", "const": "aster-compiler/0.1.0" },
+    "contentHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "provenance": {
+      "type": "object",
+      "required": ["sourceContractHash", "compiledAt", "componentIds", "policyReferenceIds", "pluginReferenceIds"],
+      "properties": {
+        "sourceContractHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "compiledAt": { "type": "string", "format": "date-time" },
+        "componentIds": { "type": "array", "items": { "type": "string" } },
+        "policyReferenceIds": { "type": "array", "items": { "type": "string" } },
+        "pluginReferenceIds": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "context": {
+      "type": "object",
+      "required": ["displayName", "purpose", "instructions", "boundaries", "contextBlocks", "policyReferences", "pluginReferences"],
+      "properties": {
+        "displayName": { "type": "string" },
+        "purpose": { "type": "string" },
+        "instructions": { "type": "array", "items": { "type": "string" } },
+        "boundaries": { "type": "array", "items": { "type": "string" } },
+        "contextBlocks": { "type": "array", "items": { "type": "string" } },
+        "policyReferences": { "type": "array" },
+        "pluginReferences": { "type": "array" }
+      }
+    }
+  },
+  "additionalProperties": false,
+  "x-aster-contract-version": "1.0.0",
+  "x-aster-compatibility": "Consumers may accept additive fields only after upgrading this schema identifier; contentHash is SHA-256 of ASTER canonical compiled context."
+}
