@@ -1,0 +1,11 @@
+# Default ownership for this independently released public repository.
+* @tuzuminami
+
+# Security, public contracts, release metadata, and automation require maintainer review.
+/SECURITY.md @tuzuminami
+/package.json @tuzuminami
+/pnpm-lock.yaml @tuzuminami
+/packages/contracts/ @tuzuminami
+/db/migrations/ @tuzuminami
+/.github/ @tuzuminami
+/docs/ @tuzuminami

@@ -7,7 +7,7 @@ target the default branch while the next release is in development.
 
 ## Reporting a Vulnerability
 
-Do not open a public issue for suspected vulnerabilities, secrets, private prompts, production conversation data, or tenant data.
+Do not open a public issue for suspected vulnerabilities, secrets, private prompts, production conversation data, or tenant data. Use this repository's enabled GitHub private vulnerability reporting path instead.
 
 Send a private report to the repository owner with:
 

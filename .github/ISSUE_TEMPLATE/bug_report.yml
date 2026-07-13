@@ -1,0 +1,27 @@
+name: Bug report
+description: Report a reproducible public behavior defect.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, private prompts, production data, or tenant data. Report security concerns through SECURITY.md instead.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Include a minimal public-safe reproduction and expected result.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: Include ASTER version or commit, runtime, and database mode when relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Compatibility and operational impact
+      description: Note tenant, authorization, migration, or service impact if known.
