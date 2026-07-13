@@ -108,10 +108,14 @@ curl http://127.0.0.1:3000/health
 
 ## API Shape
 
-Protected endpoints require:
+Protected endpoints require an application-provided OIDC/JWT-verifying authentication adapter.
+The adapter derives actor ID, tenant ID, and operation scopes from a verified principal; a bearer
+string alone is never authorization proof. `X-Tenant-Id` is optional and, when supplied, must match
+the verified tenant. Production startup requires a verified auth adapter and explicit durable-storage
+assertion, and rejects the development adapter and a wildcard network binding.
 
-- `Authorization: Bearer <actor-id>`
-- `X-Tenant-Id: <tenant-id>`
+- `Authorization: Bearer <verified token>`
+- `X-Tenant-Id: <optional consistency check>`
 - `X-Correlation-Id: <optional correlation id>`
 - `Idempotency-Key: <required for state-changing operations>`
 
@@ -144,7 +148,7 @@ TEST_DATABASE_URL=postgres://aster:aster_dev_password@127.0.0.1:5432/aster pnpm 
 
 ## Security and Data Notes
 
-- Tenant ID is treated as requested context, not authorization proof.
+- Tenant ID and actor ID are derived from a verified principal, not request headers.
 - Unknown plugin references block compilation.
 - Published Persona Contract versions cannot be mutated.
 - Audit events are append-only.

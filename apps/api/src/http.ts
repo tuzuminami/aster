@@ -4,9 +4,13 @@ import { AsterService } from "../../../packages/core/src/service.ts";
 import type { RequestContext } from "../../../packages/core/src/types.ts";
 import { InMemoryAsterStore, SequentialIdGenerator, SystemClock } from "../../../packages/adapters/src/memory-store.ts";
 import { PostgresAsterStore } from "../../../packages/adapters/src/postgres-store.ts";
+import { assertScope, createDevelopmentAuthAdapter, type AsterAuthAdapter } from "./auth.ts";
 
 export interface AsterServerOptions {
   readonly service?: AsterService;
+  readonly authAdapter?: AsterAuthAdapter;
+  /** Production hosts assert that the injected service uses durable storage. */
+  readonly durableStorage?: boolean;
 }
 
 export type AsterIncomingRequest = AsyncIterable<Buffer | string> & {
@@ -23,16 +27,18 @@ export interface AsterOutgoingResponse {
 let defaultService: AsterService | undefined;
 
 export const createAsterServer = (options: AsterServerOptions = {}) => {
+  assertRuntimeSafety(options);
   const service = options.service ?? getDefaultService();
   return createServer((request, response) => {
-    void handleAsterRequest(service, request, response);
+    void handleAsterRequest(service, request, response, options.authAdapter ?? createDevelopmentAuthAdapter());
   });
 };
 
 export const handleAsterRequest = async (
   service: AsterService,
   request: AsterIncomingRequest,
-  response: AsterOutgoingResponse
+  response: AsterOutgoingResponse,
+  authAdapter: AsterAuthAdapter = createDevelopmentAuthAdapter()
 ): Promise<void> => {
   try {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -40,12 +46,12 @@ export const handleAsterRequest = async (
       return send(response, 200, { data: { ok: true } });
     }
     if (request.method === "POST" && url.pathname === "/v1/personas") {
-      return send(response, 201, { data: await service.createPersona(contextFrom(request), parseCreatePersona(await readJson(request))) });
+      return send(response, 201, { data: await service.createPersona(await contextFrom(request, authAdapter, "aster:personas:write"), parseCreatePersona(await readJson(request))) });
     }
     const versionMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions$/);
     if (request.method === "POST" && versionMatch?.[1]) {
       return send(response, 201, {
-        data: await service.createVersion(contextFrom(request), {
+        data: await service.createVersion(await contextFrom(request, authAdapter, "aster:personas:write"), {
           personaId: versionMatch[1],
           contract: parseCreateVersion(await readJson(request)).contract
         })
@@ -54,7 +60,7 @@ export const handleAsterRequest = async (
     const publishMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/publish$/);
     if (request.method === "POST" && publishMatch?.[1] && publishMatch[2]) {
       return send(response, 200, {
-        data: await service.publishVersion(contextFrom(request), {
+        data: await service.publishVersion(await contextFrom(request, authAdapter, "aster:personas:publish"), {
           personaId: publishMatch[1],
           version: Number(publishMatch[2])
         })
@@ -63,7 +69,7 @@ export const handleAsterRequest = async (
     const compileMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/compile$/);
     if (request.method === "POST" && compileMatch?.[1] && compileMatch[2]) {
       return send(response, 200, {
-        data: await service.compileVersion(contextFrom(request), {
+        data: await service.compileVersion(await contextFrom(request, authAdapter, "aster:personas:compile"), {
           personaId: compileMatch[1],
           version: Number(compileMatch[2])
         })
@@ -72,7 +78,7 @@ export const handleAsterRequest = async (
     const diffMatch = url.pathname.match(/^\/v1\/personas\/([^/]+)\/versions\/([0-9]+)\/diff\/([0-9]+)$/);
     if (request.method === "GET" && diffMatch?.[1] && diffMatch[2] && diffMatch[3]) {
       return send(response, 200, {
-        data: await service.diffVersions(contextFrom(request), {
+        data: await service.diffVersions(await contextFrom(request, authAdapter, "aster:personas:read"), {
           personaId: diffMatch[1],
           fromVersion: Number(diffMatch[2]),
           toVersion: Number(diffMatch[3])
@@ -80,7 +86,7 @@ export const handleAsterRequest = async (
       });
     }
     if (request.method === "POST" && url.pathname === "/v1/plugins/validate") {
-      return send(response, 200, { data: await service.validatePlugin(contextFrom(request), await readJson(request)) });
+      return send(response, 200, { data: await service.validatePlugin(await contextFrom(request, authAdapter, "aster:plugins:write"), await readJson(request)) });
     }
     return send(response, 404, { error: { code: "RESOURCE_NOT_FOUND", message: "Route was not found." } });
   } catch (error) {
@@ -105,27 +111,29 @@ const getDefaultService = (): AsterService => {
   return defaultService;
 };
 
-const contextFrom = (request: AsterIncomingRequest): RequestContext => {
-  const auth = request.headers.authorization;
-  if (!auth?.startsWith("Bearer ")) {
-    throw new AsterError("AUTHENTICATION_REQUIRED", 401, "Authentication is required.");
+const contextFrom = async (request: AsterIncomingRequest, authAdapter: AsterAuthAdapter, requiredScope: string): Promise<RequestContext> => {
+  const principal = await authAdapter.authenticate(request);
+  assertScope(principal, requiredScope);
+  const requestedTenantId = request.headers["x-tenant-id"]?.toString();
+  if (requestedTenantId && requestedTenantId !== principal.tenantId) {
+    throw new AsterError("TENANT_SCOPE_DENIED", 403, "Request cannot access this resource.");
   }
-  const tenantId = header(request, "x-tenant-id");
-  const actorId = auth.slice("Bearer ".length);
-  if (actorId.length === 0) throw new AsterError("AUTHENTICATION_REQUIRED", 401, "Authentication is required.");
   const idempotencyKey = request.headers["idempotency-key"]?.toString();
   return {
-    tenantId,
-    actorId,
+    tenantId: principal.tenantId,
+    actorId: principal.actorId,
     correlationId: request.headers["x-correlation-id"]?.toString() ?? "corr_dev",
     ...(idempotencyKey ? { idempotencyKey } : {})
   };
 };
 
-const header = (request: AsterIncomingRequest, name: string): string => {
-  const value = request.headers[name]?.toString();
-  if (!value) throw new AsterError("TENANT_SCOPE_DENIED", 403, "Request cannot access this resource.");
-  return value;
+const assertRuntimeSafety = (options: AsterServerOptions): void => {
+  if (process.env.NODE_ENV !== "production") return;
+  if (!options.authAdapter) throw new Error("Production startup requires an explicit production auth adapter.");
+  if (!process.env.DATABASE_URL) throw new Error("Production startup requires DATABASE_URL.");
+  if (!options.durableStorage) throw new Error("Production startup requires a durable storage assertion.");
+  const host = process.env.HOST;
+  if (!host || host === "0.0.0.0" || host === "::") throw new Error("Production startup requires an explicit non-wildcard HOST.");
 };
 
 const readJson = async (request: AsterIncomingRequest): Promise<Record<string, unknown>> => {
@@ -169,7 +177,8 @@ const send = (response: AsterOutgoingResponse, status: number, body: unknown): v
 
 if (process.argv[1]?.endsWith("http.ts") || process.argv[1]?.endsWith("http.js")) {
   const port = Number(process.env.PORT ?? "3000");
-  createAsterServer().listen(port, () => {
+  const host = process.env.HOST ?? "127.0.0.1";
+  createAsterServer().listen(port, host, () => {
     process.stdout.write(`ASTER API listening on ${port}\n`);
   });
 }
