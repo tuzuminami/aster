@@ -113,6 +113,17 @@ Health check:
 curl http://127.0.0.1:3000/health
 ```
 
+## Compiled Bundle Contract
+
+`CompiledBundle` has a versioned, public JSON Schema at
+`@aster/persona-contract-compiler/contracts/schemas/compiled-bundle.schema.json` and a deterministic
+compiler-produced fixture at
+`@aster/persona-contract-compiler/contracts/fixtures/compiled-bundle.v1.json`.
+The schema identifier is `https://tuzuminami.github.io/aster/contracts/compiled-bundle/1.0.0/schema.json`.
+Consumers must treat `contentHash` as the SHA-256 identity of the canonical compiled context. Contract
+changes require a new schema identifier and an explicit compatibility policy; ASTER never creates a runtime
+dependency on consumers such as DRIFT.
+
 ## API Shape
 
 Protected endpoints require an application-provided OIDC/JWT-verifying authentication adapter.

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Publish the versioned CompiledBundle JSON Schema and compiler-generated golden fixture with a release gate.
 - Align the public OpenAPI tenant assertion and plugin-validation request contract with the executable HTTP runtime.
 
 ## 1.0.0 - 2026-07-13
