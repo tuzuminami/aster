@@ -52,9 +52,9 @@ flowchart LR
 
 ASTER is a Persona Contract Compiler for conversational AI systems. It validates versioned Persona Contracts and compiles published versions into deterministic, model-independent bundles with provenance.
 
-## Current Scope
+## v1.0.0 Scope
 
-This v0.2 foundation includes:
+ASTER v1.0.0 is the first stable public release of the Persona Contract Compiler. It includes:
 
 - strict TypeScript domain/application boundaries;
 - Persona Contract validation;
@@ -67,7 +67,13 @@ This v0.2 foundation includes:
 - a public private-boundary guard for release hygiene;
 - a PostgreSQL adapter, migrations, and CI-backed PostgreSQL integration coverage.
 
-Out of scope for this slice: chat UI, LLM inference, a plugin marketplace, and provider-specific prompt rendering.
+Out of scope for v1.0.0: chat UI, LLM inference, a plugin marketplace, and provider-specific prompt rendering.
+
+## Compatibility and Composition
+
+ASTER follows semantic versioning for its published package API and Persona Contract schema. A v1.x consumer can rely on the exported compiler API and published contract files; incompatible changes require a new major release and a documented migration path.
+
+Compiled persona bundles are self-contained artifacts. They can be used by an application on their own, or referenced by [DRIFT](https://github.com/tuzuminami/drift) for scenario and replay workflows. That reference is an optional transport-level composition, not an ASTER-to-DRIFT runtime package dependency. Each project can be upgraded, deployed, and evaluated independently.
 
 ## Repository Quality Gates
 
@@ -79,9 +85,10 @@ pnpm run build
 pnpm test
 pnpm run test:compiled
 pnpm pack --dry-run
+pnpm run check:release-docs
 ```
 
-CI runs the same boundary, build, and test checks on pushes and pull requests.
+CI runs the same boundary, build, test, package, and release-documentation checks on pushes and pull requests.
 
 ## Quick Start
 

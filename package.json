@@ -32,9 +32,10 @@
     "test": "node --test tests/*.test.ts",
     "test:postgres": "node --test tests/postgres-store.test.ts tests/migrations.test.ts",
     "test:compiled": "pnpm run build && node --test dist/tests/*.test.js",
-    "verify": "pnpm run check:private-boundary && pnpm run build && pnpm test && pnpm run test:compiled && pnpm pack --dry-run",
+    "verify": "pnpm run check:private-boundary && pnpm run build && pnpm test && pnpm run test:compiled && pnpm pack --dry-run && pnpm run check:release-docs",
     "db:migrate": "node scripts/migrate-postgres.ts",
     "check:private-boundary": "node scripts/check-private-boundary.mjs",
+    "check:release-docs": "node scripts/check-release-docs.mjs",
     "lint": "pnpm run check:private-boundary && pnpm run build"
   },
   "devDependencies": {

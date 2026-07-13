@@ -42,7 +42,7 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Private boundary check
         run: pnpm run check:private-boundary
@@ -65,3 +65,6 @@ jobs:
 
       - name: Package dry-run
         run: pnpm pack --dry-run
+
+      - name: Release documentation check
+        run: pnpm run check:release-docs
