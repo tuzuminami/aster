@@ -24,6 +24,13 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
     await this.pool.end();
   }
 
+  public async healthCheck(): Promise<boolean> {
+    const result = await this.pool.query<{ readonly personas: string | null; readonly versions: string | null }>(
+      "SELECT to_regclass('public.personas') AS personas, to_regclass('public.persona_versions') AS versions"
+    );
+    return result.rows[0]?.personas === "personas" && result.rows[0]?.versions === "persona_versions";
+  }
+
   public async runAtomically<T>(scope: AtomicMutationScope, operation: (ports: AtomicMutationPorts) => Promise<T>): Promise<T> {
     let client: PoolClient | undefined;
     try {

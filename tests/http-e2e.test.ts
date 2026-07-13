@@ -259,6 +259,16 @@ test("AT-AST-021 OpenAPI-valid plugin requests derive tenancy from the verified 
   assert.equal(rejectedTenant.status, 403);
 });
 
+test("AT-AST-024 readiness is dependency-aware while liveness remains available", async () => {
+  const { service } = makeService();
+  const request = { method: "GET", url: "/ready", headers: {}, async *[Symbol.asyncIterator]() {} } satisfies AsterIncomingRequest;
+  let status = 0;
+  let body = "";
+  await handleAsterRequest(service, request, { writeHead(next) { status = next; }, end(next) { body = next; } }, undefined, async () => false);
+  assert.equal(status, 503);
+  assert.deepEqual(JSON.parse(body), { data: { ready: false } });
+});
+
 const requestJson = async (
   service: AsterService,
   path: string,

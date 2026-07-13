@@ -9,6 +9,7 @@ import { assertScope, createDevelopmentAuthAdapter, type AsterAuthAdapter } from
 export interface AsterServerOptions {
   readonly service?: AsterService;
   readonly authAdapter?: AsterAuthAdapter;
+  readonly readiness?: () => Promise<boolean>;
   /** Production hosts assert that the injected service uses durable storage. */
   readonly durableStorage?: boolean;
 }
@@ -30,7 +31,7 @@ export const createAsterServer = (options: AsterServerOptions = {}) => {
   assertRuntimeSafety(options);
   const service = options.service ?? getDefaultService();
   return createServer((request, response) => {
-    void handleAsterRequest(service, request, response, options.authAdapter ?? createDevelopmentAuthAdapter());
+    void handleAsterRequest(service, request, response, options.authAdapter ?? createDevelopmentAuthAdapter(), options.readiness);
   });
 };
 
@@ -38,12 +39,17 @@ export const handleAsterRequest = async (
   service: AsterService,
   request: AsterIncomingRequest,
   response: AsterOutgoingResponse,
-  authAdapter: AsterAuthAdapter = createDevelopmentAuthAdapter()
+  authAdapter: AsterAuthAdapter = createDevelopmentAuthAdapter(),
+  readiness?: () => Promise<boolean>
 ): Promise<void> => {
   try {
     const url = new URL(request.url ?? "/", "http://localhost");
     if (request.method === "GET" && url.pathname === "/health") {
       return send(response, 200, { data: { ok: true } });
+    }
+    if (request.method === "GET" && url.pathname === "/ready") {
+      const ready = await (readiness?.() ?? Promise.resolve(true));
+      return send(response, ready ? 200 : 503, { data: { ready } });
     }
     if (request.method === "POST" && url.pathname === "/v1/personas") {
       return send(response, 201, { data: await service.createPersona(await contextFrom(request, authAdapter, "aster:personas:write"), parseCreatePersona(await readJson(request))) });

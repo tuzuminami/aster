@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a fail-closed packaged production runtime with external authentication loading and dependency readiness.
 - Align OpenAPI release metadata with package SemVer and gate future drift.
 - Publish the versioned CompiledBundle JSON Schema and compiler-generated golden fixture with a release gate.
 - Align the public OpenAPI tenant assertion and plugin-validation request contract with the executable HTTP runtime.
