@@ -251,9 +251,48 @@ test("AT-AST-018 crypto IDs do not collide across independent generators", () =>
   assert.equal(ids.size, 4_000);
 });
 
+test("AT-AST-019 a failing in-memory mutation cannot roll back a concurrent successful mutation", async () => {
+  const store = new BlockingFailingAuditStore();
+  const service = new AsterService({
+    repository: store, plugins: store, idempotency: store, audit: store, transactions: store,
+    clock: new DeterministicClock(), ids: new SequentialIdGenerator()
+  });
+  const failed = service.createPersona(baseContext("atomic-concurrent-failure"), { name: "Must roll back" });
+  await store.firstAuditStarted;
+  const successful = service.createPersona(baseContext("atomic-concurrent-success"), { name: "Must persist" });
+  store.releaseFailure();
+  await assert.rejects(failed);
+  const persona = await successful;
+  assert.deepEqual(await store.getPersona("tenant_a", persona.id), persona);
+});
+
 class FailingAuditStore extends InMemoryAsterStore {
   public override async append(): Promise<void> {
     throw new Error("injected audit failure");
+  }
+}
+
+class BlockingFailingAuditStore extends InMemoryAsterStore {
+  private failFirstAudit = true;
+  private startFirstAudit: () => void = () => undefined;
+  private unblockFirstAudit: () => void = () => undefined;
+  public readonly firstAuditStarted = new Promise<void>((resolve) => {
+    this.startFirstAudit = resolve;
+  });
+  private readonly firstAuditReleased = new Promise<void>((resolve) => {
+    this.unblockFirstAudit = resolve;
+  });
+
+  public releaseFailure(): void {
+    this.unblockFirstAudit();
+  }
+
+  public override async append(event: Parameters<InMemoryAsterStore["append"]>[0]): Promise<void> {
+    if (!this.failFirstAudit) return super.append(event);
+    this.failFirstAudit = false;
+    this.startFirstAudit();
+    await this.firstAuditReleased;
+    throw new Error("injected concurrent audit failure");
   }
 }
 

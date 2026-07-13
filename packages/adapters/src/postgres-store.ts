@@ -25,8 +25,9 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
   }
 
   public async runAtomically<T>(scope: AtomicMutationScope, operation: (ports: AtomicMutationPorts) => Promise<T>): Promise<T> {
-    const client = await this.pool.connect();
+    let client: PoolClient | undefined;
     try {
+      client = await this.pool.connect();
       await client.query("BEGIN");
       await client.query(
         "SELECT pg_advisory_xact_lock(hashtext($1))",
@@ -36,11 +37,11 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
       await client.query("COMMIT");
       return result;
     } catch (error) {
-      await client.query("ROLLBACK").catch(() => undefined);
+      await client?.query("ROLLBACK").catch(() => undefined);
       if (error instanceof AsterError) throw error;
       throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Database transaction failed.");
     } finally {
-      client.release();
+      client?.release();
     }
   }
 
@@ -193,13 +194,13 @@ export class PostgresAsterStore implements PersonaRepository, AuditLog, Idempote
 
   public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string): Promise<T | undefined> {
     if (!idempotencyKey) return undefined;
-    const result = await this.query<{ response_json: unknown }>(
+    const result = await this.query<{ response_json: string | T }>(
       `SELECT response_json
        FROM idempotency_records
        WHERE tenant_id = $1 AND key = $2 AND operation = $3`,
       [tenantId, idempotencyKey, operation]
     );
-    return result.rows[0] ? (result.rows[0].response_json as T) : undefined;
+    return result.rows[0] ? parseJson<T>(result.rows[0].response_json) : undefined;
   }
 
   public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, response: T): Promise<void> {

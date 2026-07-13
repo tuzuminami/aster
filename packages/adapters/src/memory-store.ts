@@ -10,8 +10,15 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
   private readonly idempotency = new Map<string, unknown>();
   private readonly audits: AuditEvent[] = [];
   private readonly plugins = new Map<string, PluginManifest>();
+  private atomicTail: Promise<void> = Promise.resolve();
 
   public async runAtomically<T>(_scope: AtomicMutationScope, operation: (ports: AtomicMutationPorts) => Promise<T>): Promise<T> {
+    const previous = this.atomicTail;
+    let release: () => void = () => undefined;
+    this.atomicTail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
     const snapshot = {
       personas: new Map(this.personas), versions: new Map(this.versions), bundles: new Map(this.bundles),
       idempotency: new Map(this.idempotency), audits: [...this.audits], plugins: new Map(this.plugins)
@@ -23,6 +30,8 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
       restore(this.idempotency, snapshot.idempotency); restore(this.plugins, snapshot.plugins);
       this.audits.splice(0, this.audits.length, ...snapshot.audits);
       throw error;
+    } finally {
+      release();
     }
   }
 
