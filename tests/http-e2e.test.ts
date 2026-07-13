@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { handleAsterRequest, type AsterIncomingRequest, type AsterOutgoingResponse } from "../apps/api/src/http.ts";
+import { createAsterServer, handleAsterRequest, type AsterIncomingRequest, type AsterOutgoingResponse } from "../apps/api/src/http.ts";
+import type { AsterAuthAdapter } from "../apps/api/src/auth.ts";
 import {
   AsterError,
   AsterService,
@@ -152,6 +153,58 @@ test("AT-AST-014 HTTP compile fails closed when plugin becomes incompatible", as
   assert.equal(rejected.status, 422);
 });
 
+test("AT-AST-015 production auth derives tenancy from a verified principal and enforces scopes", async () => {
+  const { service, store } = makeService();
+  const adapter: AsterAuthAdapter = {
+    async authenticate(request) {
+      if (request.headers.authorization !== "Bearer verified-token") {
+        throw new AsterError("AUTHENTICATION_REQUIRED", 401, "Authentication is required.");
+      }
+      return { actorId: "oidc_actor", tenantId: "tenant_verified", scopes: ["aster:personas:read"] };
+    }
+  };
+  const forged = await requestJson(service, "/v1/personas", {
+    method: "POST",
+    body: { name: "Nope" },
+    headers: { authorization: "Bearer forged", "x-tenant-id": "tenant_verified", "idempotency-key": "forged" },
+    authAdapter: adapter
+  });
+  assert.equal(forged.status, 401);
+  const insufficientScope = await requestJson(service, "/v1/personas", {
+    method: "POST",
+    body: { name: "Nope" },
+    headers: { authorization: "Bearer verified-token", "x-tenant-id": "tenant_verified", "idempotency-key": "scope" },
+    authAdapter: adapter
+  });
+  assert.equal(insufficientScope.status, 403);
+  const tenantMismatch = await requestJson(service, "/v1/personas", {
+    method: "POST",
+    body: { name: "Nope" },
+    headers: { authorization: "Bearer verified-token", "x-tenant-id": "tenant_forged", "idempotency-key": "tenant" },
+    authAdapter: { async authenticate() { return { actorId: "oidc_actor", tenantId: "tenant_verified", scopes: ["aster:personas:write"] }; } }
+  });
+  assert.equal(tenantMismatch.status, 403);
+  assert.equal(await store.getPersona("tenant_verified", "per_1"), undefined);
+});
+
+test("AT-AST-016 production startup refuses development auth, in-memory storage, and wildcard binding", () => {
+  const original = { nodeEnv: process.env.NODE_ENV, databaseUrl: process.env.DATABASE_URL, host: process.env.HOST };
+  try {
+    process.env.NODE_ENV = "production";
+    delete process.env.DATABASE_URL;
+    delete process.env.HOST;
+    assert.throws(() => createAsterServer({ service: makeService().service }), /production auth adapter/);
+    assert.throws(() => createAsterServer({ service: makeService().service, authAdapter: { async authenticate() { return { actorId: "a", tenantId: "t", scopes: ["*"] }; } } }), /DATABASE_URL/);
+    process.env.DATABASE_URL = "postgres://example";
+    process.env.HOST = "127.0.0.1";
+    assert.throws(() => createAsterServer({ service: makeService().service, authAdapter: { async authenticate() { return { actorId: "a", tenantId: "t", scopes: ["*"] }; } } }), /durable storage assertion/);
+  } finally {
+    if (original.nodeEnv === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = original.nodeEnv;
+    if (original.databaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = original.databaseUrl;
+    if (original.host === undefined) delete process.env.HOST; else process.env.HOST = original.host;
+  }
+});
+
 const requestJson = async (
   service: AsterService,
   path: string,
@@ -159,6 +212,7 @@ const requestJson = async (
     readonly method?: string;
     readonly body?: unknown;
     readonly headers?: Record<string, string>;
+    readonly authAdapter?: AsterAuthAdapter;
   } = {}
 ): Promise<{ readonly status: number; readonly body: unknown }> => {
   let status = 0;
@@ -182,7 +236,7 @@ const requestJson = async (
       body = nextBody;
     }
   } satisfies AsterOutgoingResponse;
-  await handleAsterRequest(service, request, response);
+  await handleAsterRequest(service, request, response, options.authAdapter);
   return { status, body: JSON.parse(body) as unknown };
 };
 
