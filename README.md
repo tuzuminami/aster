@@ -130,8 +130,22 @@ node node_modules/@aster/persona-contract-compiler/dist/apps/api/src/runtime.js
 `@aster/persona-contract-compiler/contracts/schemas/compiled-bundle.schema.json` and a deterministic
 compiler-produced fixture at
 `@aster/persona-contract-compiler/contracts/fixtures/compiled-bundle.v1.json`.
-The schema identifier is `https://tuzuminami.github.io/aster/contracts/compiled-bundle/1.0.0/schema.json`.
-Consumers must treat `contentHash` as the SHA-256 identity of the canonical compiled context. Contract
+The current schema identifier is `https://tuzuminami.github.io/aster/contracts/compiled-bundle/1.1.0/schema.json`.
+`integrity.canonicalInput` is the complete public hash input: consumers recompute `contentHash` as SHA-256
+of UTF-8 encoded ASTER Canonical JSON v1, then verify its persona ID/version against the outer bundle fields,
+its full provenance against `provenance`, and its execution fields against `context`. ASTER Canonical JSON v1
+recursively sorts object keys by JavaScript string code-unit order, preserves array order, omits undefined
+object values, and serializes with `JSON.stringify`. That makes a bundle with a changed runtime context,
+identity, provenance, or retained digest fail verification before it composes
+with systems such as [DRIFT](https://github.com/tuzuminami/drift).
+
+This is an internal integrity contract, not a transport-authenticity signature. A consumer receiving a bundle
+from an untrusted transport must verify it with `parseVerifiedCompiledBundle` and pin or authenticate its
+distribution channel separately.
+
+The immutable v1.0.1 package and artifact remain available at their existing release tag for compatibility.
+ASTER package v2 makes the stricter parser and compiler output explicit as a breaking API change. New independent
+or integrated consumers should select the CompiledBundle v1.1.0 schema identifier and ASTER package v2. Contract
 changes require a new schema identifier and an explicit compatibility policy; ASTER never creates a runtime
 dependency on consumers such as DRIFT.
 
@@ -162,7 +176,7 @@ Primary flow:
 4. `POST /v1/personas/{personaId}/versions/{version}/compile`
 5. `GET /v1/personas/{personaId}/versions/{version}/diff/{otherVersion}`
 
-The package and OpenAPI `info.version` are one release contract: ASTER `1.x.y` ships OpenAPI `1.x.y`.
+The package and OpenAPI `info.version` are one release contract: ASTER `x.y.z` ships OpenAPI `x.y.z`.
 The `/v1` HTTP path remains the separate API-major compatibility axis. `pnpm run check:release-contract`
 rejects version drift before release. See `packages/contracts/openapi/openapi.yaml` and
 `packages/contracts/schemas/persona-contract.schema.json`.
