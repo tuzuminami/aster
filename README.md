@@ -151,7 +151,10 @@ Primary flow:
 4. `POST /v1/personas/{personaId}/versions/{version}/compile`
 5. `GET /v1/personas/{personaId}/versions/{version}/diff/{otherVersion}`
 
-See `packages/contracts/openapi/openapi.yaml` and `packages/contracts/schemas/persona-contract.schema.json`.
+The package and OpenAPI `info.version` are one release contract: ASTER `1.x.y` ships OpenAPI `1.x.y`.
+The `/v1` HTTP path remains the separate API-major compatibility axis. `pnpm run check:release-contract`
+rejects version drift before release. See `packages/contracts/openapi/openapi.yaml` and
+`packages/contracts/schemas/persona-contract.schema.json`.
 
 ## Local PostgreSQL
 
