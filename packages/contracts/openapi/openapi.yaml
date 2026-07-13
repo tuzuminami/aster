@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ASTER API
-  version: 1.0.1
+  version: 2.0.0
 paths:
   /health:
     get:
@@ -107,6 +107,14 @@ paths:
       responses:
         "200":
           description: Compiled bundle.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    $ref: "#/components/schemas/CompiledBundle"
         "409":
           description: Idempotency key was reused for a different request.
   /v1/personas/{personaId}/versions/{version}/diff/{otherVersion}:
@@ -187,6 +195,8 @@ components:
       schema:
         type: string
   schemas:
+    CompiledBundle:
+      $ref: "../schemas/compiled-bundle.schema.json"
     PluginManifest:
       type: object
       required: [name, version, capabilities, coreApiVersion, enabled]

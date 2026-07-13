@@ -71,8 +71,18 @@ export interface PersonaVersion {
 export interface CompiledBundle {
   readonly personaId: string;
   readonly version: number;
-  readonly compilerVersion: string;
+  readonly compilerVersion: "aster-compiler/0.2.0";
   readonly contentHash: string;
+  /**
+   * Public, hash-addressed compiler input. Consumers can recompute
+   * `contentHash` without access to ASTER's private source contract store.
+   */
+  readonly integrity: {
+    readonly algorithm: "sha256";
+    readonly canonicalization: "aster-canonical-json/1";
+    readonly encoding: "utf-8";
+    readonly canonicalInput: CompiledBundleCanonicalInput;
+  };
   readonly provenance: {
     readonly sourceContractHash: string;
     readonly compiledAt: string;
@@ -89,6 +99,23 @@ export interface CompiledBundle {
     readonly policyReferences: readonly PolicyReference[];
     readonly pluginReferences: readonly PluginReference[];
   };
+}
+
+export interface CompiledBundleCanonicalInput {
+  readonly personaId: string;
+  readonly version: number;
+  readonly compilerVersion: "aster-compiler/0.2.0";
+  readonly sourceContractHash: string;
+  readonly compiledAt: string;
+  readonly componentIds: readonly string[];
+  readonly policyReferenceIds: readonly string[];
+  readonly pluginReferenceIds: readonly string[];
+  readonly persona: PersonaContract["persona"];
+  readonly instructions: readonly string[];
+  readonly boundaries: readonly string[];
+  readonly contextBlocks: readonly string[];
+  readonly policyReferences: readonly PolicyReference[];
+  readonly pluginReferences: readonly PluginReference[];
 }
 
 export interface AuditEvent {

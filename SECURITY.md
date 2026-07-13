@@ -2,8 +2,9 @@
 
 ## Supported Versions
 
-ASTER v1.x receives security fixes for the latest supported v1 release. Security fixes also
-target the default branch while the next release is in development.
+ASTER v2.x receives security fixes for the latest supported v2 release. ASTER v1.0.1 remains
+available as the immutable prior contract release; security fixes also target the default branch
+while the next release is in development.
 
 ## Reporting a Vulnerability
 

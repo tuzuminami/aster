@@ -5,6 +5,7 @@ export function validateReleaseDocs({ version, docs }) {
   const firstStableVersion = "1.0.0";
   const readme = getDocument(docs, "README.md");
   const security = getDocument(docs, "SECURITY.md");
+  const supportedMajor = version.split(".")[0];
   const v1Scope = section(readme, "## v1 Scope");
 
   check(/^\d+\.\d+\.\d+$/.test(version), "package version must be stable semver");
@@ -18,7 +19,10 @@ export function validateReleaseDocs({ version, docs }) {
     readme.includes("optional transport-level composition"),
     "README must describe optional DRIFT composition without a runtime dependency"
   );
-  check(security.includes("ASTER v1.x receives security fixes"), "SECURITY.md must identify the supported v1 release series");
+  check(
+    security.includes(`ASTER v${supportedMajor}.x receives security fixes`),
+    `SECURITY.md must identify the supported v${supportedMajor} release series`
+  );
   check(!/\bpre[- ]1\.0\b/i.test(security), "SECURITY.md must not describe ASTER as pre-1.0");
 
   for (const doc of docs) {

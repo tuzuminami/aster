@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AsterError, AsterService, type PersonaContract } from "../packages/core/src/index.ts";
 import { CryptoIdGenerator, DeterministicClock, InMemoryAsterStore, SequentialIdGenerator } from "../packages/adapters/src/memory-store.ts";
+import { compilePersonaContract } from "../packages/core/src/compiler.ts";
 
 const contract: PersonaContract = {
   schemaVersion: "1.0",
@@ -280,6 +281,85 @@ test("AT-AST-019 a failing in-memory mutation cannot roll back a concurrent succ
   await assert.rejects(failed);
   const persona = await successful;
   assert.deepEqual(await store.getPersona("tenant_a", persona.id), persona);
+});
+
+test("AT-AST-028 stored compiled bundles fail closed when integrity verification fails", async () => {
+  const { service, store } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-28"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-28"), { personaId: persona.id, contract });
+  await service.publishVersion(baseContext("publish-28"), { personaId: persona.id, version: 1 });
+  const bundle = await service.compileVersion(baseContext("compile-28"), { personaId: persona.id, version: 1 });
+  const mutableStore = store as unknown as { bundles: Map<string, unknown> };
+  mutableStore.bundles.set(
+    `tenant_a:${persona.id}:1:${bundle.compilerVersion}`,
+    { ...bundle, context: { ...bundle.context, instructions: ["tampered after persistence"] } }
+  );
+
+  await assert.rejects(
+    service.compileVersion(baseContext("compile-corrupt-28"), { personaId: persona.id, version: 1 }),
+    (error: unknown) => error instanceof AsterError && error.code === "DEPENDENCY_UNAVAILABLE"
+  );
+});
+
+test("AT-AST-029 stored bundles must match deterministic compilation from the published contract", async () => {
+  const { service, store } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-29"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-29"), { personaId: persona.id, contract });
+  await service.publishVersion(baseContext("publish-29"), { personaId: persona.id, version: 1 });
+  const bundle = await service.compileVersion(baseContext("compile-29"), { personaId: persona.id, version: 1 });
+  const forged = compilePersonaContract(
+    persona.id,
+    1,
+    { ...contract, components: [{ id: "base", type: "instruction", body: "Substituted instruction." }] },
+    "2026-01-01T00:00:00.000Z"
+  );
+  const mutableStore = store as unknown as { bundles: Map<string, unknown> };
+  mutableStore.bundles.set(`tenant_a:${persona.id}:1:${bundle.compilerVersion}`, forged);
+
+  await assert.rejects(
+    service.compileVersion(baseContext("compile-forged-29"), { personaId: persona.id, version: 1 }),
+    (error: unknown) => error instanceof AsterError && error.code === "DEPENDENCY_UNAVAILABLE"
+  );
+});
+
+test("AT-AST-030 compiled bundle idempotency replays fail closed before returning", async () => {
+  const { service, store } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-30"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-30"), { personaId: persona.id, contract });
+  await service.publishVersion(baseContext("publish-30"), { personaId: persona.id, version: 1 });
+  const replayContext = baseContext("compile-replay-30");
+  const bundle = await service.compileVersion(replayContext, { personaId: persona.id, version: 1 });
+  const mutableStore = store as unknown as {
+    idempotency: Map<string, { readonly requestHash: string; readonly response: unknown }>;
+  };
+  const key = `tenant_a:compileVersion:${bundle.compilerVersion}:compile-replay-30`;
+  const record = mutableStore.idempotency.get(key);
+  assert.ok(record);
+  mutableStore.idempotency.set(key, { ...record, response: { ...bundle, compilerVersion: "aster-compiler/0.1.0" } });
+
+  await assert.rejects(
+    service.compileVersion(replayContext, { personaId: persona.id, version: 1 }),
+    (error: unknown) => error instanceof AsterError && error.code === "DEPENDENCY_UNAVAILABLE"
+  );
+});
+
+test("AT-AST-032 stored persona contracts fail closed when their content hash drifts", async () => {
+  const { service, store } = makeService();
+  const persona = await service.createPersona(baseContext("create-persona-32"), { name: "Tutor" });
+  await service.createVersion(baseContext("create-version-32"), { personaId: persona.id, contract });
+  await service.publishVersion(baseContext("publish-32"), { personaId: persona.id, version: 1 });
+  const mutableStore = store as unknown as { versions: Map<string, unknown> };
+  const key = `tenant_a:${persona.id}:1`;
+  const stored = mutableStore.versions.get(key) as { readonly contract: PersonaContract };
+  mutableStore.versions.set(key, {
+    ...stored,
+    contract: { ...stored.contract, components: [{ id: "base", type: "instruction", body: "Tampered stored contract." }] }
+  });
+
+  await assert.rejects(
+    service.compileVersion(baseContext("compile-tampered-32"), { personaId: persona.id, version: 1 }),
+    (error: unknown) => error instanceof AsterError && error.code === "DEPENDENCY_UNAVAILABLE"
+  );
 });
 
 class FailingAuditStore extends InMemoryAsterStore {

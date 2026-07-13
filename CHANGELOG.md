@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0 - 2026-07-13
+
+- Publish CompiledBundle contract `1.1.0` with closed nested schemas for provenance, context, policy references, and plugin references.
+- Add `integrity.canonicalInput` so an independent consumer can recompute the content hash and reject a context-mutated bundle before composition.
+- Make the breaking strict-parser and compiler-output change explicit as a package major release. The immutable v1.0.1 package and contract remain available at their existing release tag; new integrations should select the CompiledBundle `1.1.0` schema identifier and ASTER package v2.
+
 ## 1.0.1 - 2026-07-13
 
 - Release the versioned CompiledBundle schema and compiler-generated public fixture introduced during the v1.0 stabilization work.

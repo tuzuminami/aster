@@ -1,5 +1,5 @@
-import { sha256Hex } from "./canonical.ts";
-import { COMPILER_VERSION, compilePersonaContract } from "./compiler.ts";
+import { canonicalJson, sha256Hex } from "./canonical.ts";
+import { COMPILER_VERSION, compilePersonaContract, parseVerifiedCompiledBundle } from "./compiler.ts";
 import { AsterError } from "./errors.ts";
 import type { AtomicMutationPorts, AtomicMutationStore, AuditLog, Clock, IdGenerator, IdempotencyStore, PersonaRepository, PluginRegistry } from "./ports.ts";
 import type { CompiledBundle, Persona, PersonaContract, PersonaDiff, PersonaVersion, PluginManifest, RequestContext } from "./types.ts";
@@ -131,25 +131,48 @@ export class AsterService {
     input: { readonly personaId: string; readonly version: number }
   ): Promise<CompiledBundle> {
     this.requireTenant(context);
-    return this.idempotent(context, "compileVersion", { actorId: context.actorId, input }, async (mutation) => {
-      const personaVersion = await mutation.repository.getVersion(context.tenantId, input.personaId, input.version);
-      if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
-      assertPublished(personaVersion.status);
-      await this.ports.plugins.validateReferences(context.tenantId, personaVersion.contract.plugins ?? []);
+    const personaVersion = await this.ports.repository.getVersion(context.tenantId, input.personaId, input.version);
+    if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
+    assertPublished(personaVersion.status);
+    if (sha256Hex(personaVersion.contract) !== personaVersion.contentHash) {
+      throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Stored persona contract failed content-hash verification.");
+    }
+    await this.ports.plugins.validateReferences(context.tenantId, personaVersion.contract.plugins ?? []);
+    const expectedBundle = compilePersonaContract(
+      input.personaId,
+      input.version,
+      personaVersion.contract,
+      personaVersion.updatedAt
+    );
+    const operation = `compileVersion:${COMPILER_VERSION}`;
+    return this.idempotent(
+      context,
+      operation,
+      { actorId: context.actorId, input, compilerVersion: COMPILER_VERSION, contractVersion: "1.1.0", expectedContentHash: expectedBundle.contentHash },
+      async (mutation) => {
       const existingBundle = await mutation.repository.getBundle(
         context.tenantId,
         input.personaId,
         input.version,
         COMPILER_VERSION
       );
-      if (existingBundle) return existingBundle;
-      const bundle = compilePersonaContract(
-        input.personaId,
-        input.version,
-        personaVersion.contract,
-        personaVersion.updatedAt
-      );
+      if (existingBundle) {
+        return this.verifyExpectedCompiledBundle(existingBundle, expectedBundle);
+      }
+      const bundle = expectedBundle;
       const saveResult = await mutation.repository.saveBundle(bundle, context.tenantId, context.actorId);
+      if (saveResult === "existing") {
+        const persistedBundle = await mutation.repository.getBundle(
+          context.tenantId,
+          input.personaId,
+          input.version,
+          COMPILER_VERSION
+        );
+        if (!persistedBundle) {
+          throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Stored compiled bundle was unavailable after a concurrent write.");
+        }
+        return this.verifyExpectedCompiledBundle(persistedBundle, expectedBundle);
+      }
       if (saveResult === "created") {
         await this.audit(
           mutation.audit,
@@ -162,7 +185,9 @@ export class AsterService {
         );
       }
       return bundle;
-    });
+      },
+      (replayed) => this.verifyExpectedCompiledBundle(replayed, expectedBundle)
+    );
   }
 
   public async diffVersions(
@@ -203,7 +228,8 @@ export class AsterService {
     context: RequestContext,
     operation: string,
     request: unknown,
-    create: (mutation: AtomicMutationPorts) => Promise<T>
+    create: (mutation: AtomicMutationPorts) => Promise<T>,
+    replayValidator?: (replayed: unknown) => T
   ): Promise<T> {
     const idempotencyKey = context.idempotencyKey;
     if (!idempotencyKey) {
@@ -211,12 +237,24 @@ export class AsterService {
     }
     const requestHash = sha256Hex(request);
     return this.ports.transactions.runAtomically({ tenantId: context.tenantId, idempotencyKey, operation }, async (mutation) => {
-      const replayed = await mutation.idempotency.replay<T>(context.tenantId, idempotencyKey, operation, requestHash);
-      if (replayed) return replayed;
+      const replayed = await mutation.idempotency.replay<unknown>(context.tenantId, idempotencyKey, operation, requestHash);
+      if (replayed !== undefined) return replayValidator ? replayValidator(replayed) : replayed as T;
       const response = await create(mutation);
       await mutation.idempotency.record(context.tenantId, idempotencyKey, operation, requestHash, response);
       return response;
     });
+  }
+
+  private verifyExpectedCompiledBundle(candidate: unknown, expected: CompiledBundle): CompiledBundle {
+    try {
+      const verified = parseVerifiedCompiledBundle(candidate);
+      if (canonicalJson(verified) !== canonicalJson(expected)) {
+        throw new Error("Stored compiled bundle differs from the published persona version.");
+      }
+      return verified;
+    } catch {
+      throw new AsterError("DEPENDENCY_UNAVAILABLE", 503, "Stored compiled bundle failed integrity verification.");
+    }
   }
 
   private requireTenant(context: RequestContext): void {
