@@ -19,6 +19,8 @@ pnpm test
 - Add or update tests for success, invalid input, authorization/tenant failure, idempotency, audit, and fail-closed behavior when relevant.
 - Do not include secrets, production data, private prompts, local evidence, private planning files, or machine-specific paths.
 - Run the private-boundary guard before opening the PR.
+- Complete the pull-request template, including compatibility, safety, operational, and verification evidence.
+- Follow the protected-branch and release expectations in `docs/RELEASE_GOVERNANCE.md`.
 
 ## Dependency Policy
 

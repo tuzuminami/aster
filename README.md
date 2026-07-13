@@ -168,6 +168,7 @@ TEST_DATABASE_URL=postgres://aster:aster_dev_password@127.0.0.1:5432/aster pnpm 
 
 - See `CONTRIBUTING.md` for development and pull request expectations.
 - See `SECURITY.md` for vulnerability reporting and data-handling expectations.
+- See `docs/RELEASE_GOVERNANCE.md` for ownership, review, branch protection, and release expectations.
 - See `CODE_OF_CONDUCT.md` for participation standards.
 
 ## License
