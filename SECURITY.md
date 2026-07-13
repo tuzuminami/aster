@@ -2,7 +2,8 @@
 
 ## Supported Versions
 
-ASTER is pre-1.0. Security fixes target the default branch until tagged releases begin.
+ASTER v1.x receives security fixes for the latest supported v1 release. Security fixes also
+target the default branch while the next release is in development.
 
 ## Reporting a Vulnerability
 
