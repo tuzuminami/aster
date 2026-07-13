@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 - 2026-07-13
+
+- Release the versioned CompiledBundle schema and compiler-generated public fixture introduced during the v1.0 stabilization work.
+- Include the fail-closed packaged runtime and aligned OpenAPI contract metadata from the v1.0 maintenance line.
+
 ## Unreleased
 
 - Add a fail-closed packaged production runtime with external authentication loading and dependency readiness.
