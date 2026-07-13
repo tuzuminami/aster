@@ -12,7 +12,7 @@ paths:
     post:
       summary: Create a persona draft container.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       security:
@@ -36,7 +36,7 @@ paths:
     post:
       summary: Create a draft persona version from a Persona Contract.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: personaId
@@ -65,7 +65,7 @@ paths:
     post:
       summary: Publish an immutable persona version.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: personaId
@@ -89,7 +89,7 @@ paths:
     post:
       summary: Compile a published persona version into a deterministic bundle.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
         - name: personaId
@@ -113,7 +113,7 @@ paths:
     get:
       summary: Diff two persona versions.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - name: personaId
           in: path
@@ -139,26 +139,39 @@ paths:
     post:
       summary: Validate and register a plugin manifest for this process.
       parameters:
-        - $ref: "#/components/parameters/TenantId"
+        - $ref: "#/components/parameters/TenantAssertion"
         - $ref: "#/components/parameters/CorrelationId"
         - $ref: "#/components/parameters/IdempotencyKey"
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PluginManifest"
       responses:
         "200":
           description: Plugin accepted.
         "409":
           description: Idempotency key was reused for a different request.
+        "401":
+          $ref: "#/components/responses/AuthenticationRequired"
+        "403":
+          $ref: "#/components/responses/AuthorizationDenied"
+        "422":
+          $ref: "#/components/responses/ValidationFailed"
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
   parameters:
-    TenantId:
+    TenantAssertion:
       name: X-Tenant-Id
       in: header
-      required: true
+      required: false
+      description: Optional caller assertion. The authenticated principal owns tenant identity; a supplied value must match it.
       schema:
         type: string
     CorrelationId:
@@ -173,3 +186,59 @@ components:
       required: true
       schema:
         type: string
+  schemas:
+    PluginManifest:
+      type: object
+      required: [name, version, capabilities, coreApiVersion, enabled]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        version:
+          type: string
+          minLength: 1
+        capabilities:
+          type: array
+          items:
+            type: string
+            enum: [context_injector, renderer]
+        coreApiVersion:
+          type: string
+          const: v1
+        enabled:
+          type: boolean
+  responses:
+    AuthenticationRequired:
+      description: The bearer token was absent or could not be verified.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    AuthorizationDenied:
+      description: The authenticated principal lacks the required scope or asserted a different tenant.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ValidationFailed:
+      description: The request body does not satisfy the endpoint contract.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: array
+              items:
+                type: string

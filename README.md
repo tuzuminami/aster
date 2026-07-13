@@ -121,6 +121,10 @@ string alone is never authorization proof. `X-Tenant-Id` is optional and, when s
 the verified tenant. Production startup requires a verified auth adapter and explicit durable-storage
 assertion, and rejects the development adapter and a wildcard network binding.
 
+The OpenAPI contract mirrors this ownership model: generated clients may omit `X-Tenant-Id`; they must
+send a valid bearer token and may use the header only as an optional consistency assertion. The
+`POST /v1/plugins/validate` request body is the versioned `PluginManifest` schema exposed in OpenAPI.
+
 - `Authorization: Bearer <verified token>`
 - `X-Tenant-Id: <optional consistency check>`
 - `X-Correlation-Id: <optional correlation id>`

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createAsterServer, handleAsterRequest, type AsterIncomingRequest, type AsterOutgoingResponse } from "../apps/api/src/http.ts";
 import type { AsterAuthAdapter } from "../apps/api/src/auth.ts";
@@ -210,6 +211,52 @@ test("AT-AST-016 production startup refuses development auth, in-memory storage,
     if (original.databaseUrl === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = original.databaseUrl;
     if (original.host === undefined) delete process.env.HOST; else process.env.HOST = original.host;
   }
+});
+
+test("AT-AST-021 OpenAPI-valid plugin requests derive tenancy from the verified principal", async () => {
+  const openApi = readFileSync("packages/contracts/openapi/openapi.yaml", "utf8");
+  assert.match(openApi, /TenantAssertion:\n      name: X-Tenant-Id\n      in: header\n      required: false/);
+  assert.match(openApi, /\/v1\/plugins\/validate:[\s\S]*?requestBody:\n        required: true[\s\S]*?\$ref: "#\/components\/schemas\/PluginManifest"/);
+  assert.match(openApi, /"401":\n          \$ref: "#\/components\/responses\/AuthenticationRequired"/);
+  assert.match(openApi, /"403":\n          \$ref: "#\/components\/responses\/AuthorizationDenied"/);
+  assert.match(openApi, /"422":\n          \$ref: "#\/components\/responses\/ValidationFailed"/);
+
+  const { service } = makeService();
+  const verifiedAuth: AsterAuthAdapter = {
+    async authenticate() {
+      return { actorId: "verified_actor", tenantId: "tenant_verified", scopes: ["aster:plugins:write"] };
+    }
+  };
+  const plugin = {
+    name: "renderer",
+    version: "1.0.0",
+    capabilities: ["renderer"],
+    coreApiVersion: "v1",
+    enabled: true
+  };
+  const accepted = await requestJson(service, "/v1/plugins/validate", {
+    method: "POST",
+    body: plugin,
+    headers: { authorization: "Bearer verified", "idempotency-key": "verified-plugin" },
+    authAdapter: verifiedAuth
+  });
+  assert.equal(accepted.status, 200);
+
+  const rejectedBody = await requestJson(service, "/v1/plugins/validate", {
+    method: "POST",
+    body: { ...plugin, coreApiVersion: "v2" },
+    headers: { authorization: "Bearer verified", "idempotency-key": "invalid-plugin" },
+    authAdapter: verifiedAuth
+  });
+  assert.equal(rejectedBody.status, 422);
+
+  const rejectedTenant = await requestJson(service, "/v1/plugins/validate", {
+    method: "POST",
+    body: plugin,
+    headers: { authorization: "Bearer verified", "x-tenant-id": "tenant_other", "idempotency-key": "mismatched-plugin" },
+    authAdapter: verifiedAuth
+  });
+  assert.equal(rejectedTenant.status, 403);
 });
 
 const requestJson = async (
