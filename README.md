@@ -113,6 +113,17 @@ Health check:
 curl http://127.0.0.1:3000/health
 ```
 
+Production uses the packaged runtime, a PostgreSQL database migrated before startup, and an application-owned
+authentication module that exports `authAdapter.authenticate(request)`. It never falls back to development
+authentication. `GET /health` is liveness; `GET /ready` returns `503` until the required PostgreSQL tables are reachable.
+
+```bash
+NODE_ENV=production DATABASE_URL='postgres://aster:secret@db/aster' \
+ASTER_AUTH_MODULE='/opt/aster/auth-adapter.mjs' \
+HOST='127.0.0.1' \
+node node_modules/@aster/persona-contract-compiler/dist/apps/api/src/runtime.js
+```
+
 ## Compiled Bundle Contract
 
 `CompiledBundle` has a versioned, public JSON Schema at
