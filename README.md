@@ -52,9 +52,9 @@ flowchart LR
 
 ASTER is a Persona Contract Compiler for conversational AI systems. It validates versioned Persona Contracts and compiles published versions into deterministic, model-independent bundles with provenance.
 
-## v1.0.0 Scope
+## v1 Scope
 
-ASTER v1.0.0 is the first stable public release of the Persona Contract Compiler. It includes:
+ASTER v1.0.0 established the first stable public release of the Persona Contract Compiler. The v1 series includes:
 
 - strict TypeScript domain/application boundaries;
 - Persona Contract validation;
