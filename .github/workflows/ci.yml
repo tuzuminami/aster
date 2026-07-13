@@ -53,6 +53,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Test compiled package output
+        run: pnpm run test:compiled
+
       - name: Migrate PostgreSQL
         run: pnpm run db:migrate
         env:
