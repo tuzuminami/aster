@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Align the public OpenAPI tenant assertion and plugin-validation request contract with the executable HTTP runtime.
+
 ## 1.0.0 - 2026-07-13
 
 - Finalized ASTER as the portable Persona Contract Compiler support module.
