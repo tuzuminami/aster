@@ -42,6 +42,13 @@ test("AT-AST-013 HTTP flow enforces headers and compiles deterministically", asy
     const personaId = readDataRecord(created.body).id;
     assert.equal(typeof personaId, "string");
 
+    const changedPayload = await requestJson(service, "/v1/personas", {
+      method: "POST",
+      body: { name: "Different Tutor" },
+      headers: authHeaders({ idempotencyKey: "create-persona" })
+    });
+    assert.equal(changedPayload.status, 409);
+
     const version = await requestJson(service, `/v1/personas/${personaId}/versions`, {
       method: "POST",
       body: { contract },

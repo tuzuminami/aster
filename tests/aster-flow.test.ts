@@ -251,6 +251,22 @@ test("AT-AST-018 crypto IDs do not collide across independent generators", () =>
   assert.equal(ids.size, 4_000);
 });
 
+test("AT-AST-020 idempotency keys reject changed payloads and cross-resource reuse", async () => {
+  const { service } = makeService();
+  const first = await service.createPersona(baseContext("reused-persona-key"), { name: "First" });
+  await assert.rejects(
+    service.createPersona(baseContext("reused-persona-key"), { name: "Changed" }),
+    (error: unknown) => error instanceof AsterError && error.code === "IDEMPOTENCY_CONFLICT"
+  );
+
+  const second = await service.createPersona(baseContext("second-persona"), { name: "Second" });
+  await service.createVersion(baseContext("reused-version-key"), { personaId: first.id, contract });
+  await assert.rejects(
+    service.createVersion(baseContext("reused-version-key"), { personaId: second.id, contract }),
+    (error: unknown) => error instanceof AsterError && error.code === "IDEMPOTENCY_CONFLICT"
+  );
+});
+
 test("AT-AST-019 a failing in-memory mutation cannot roll back a concurrent successful mutation", async () => {
   const store = new BlockingFailingAuditStore();
   const service = new AsterService({

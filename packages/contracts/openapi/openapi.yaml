@@ -30,6 +30,8 @@ paths:
       responses:
         "201":
           description: Persona created.
+        "409":
+          description: Idempotency key was reused for a different request.
   /v1/personas/{personaId}/versions:
     post:
       summary: Create a draft persona version from a Persona Contract.
@@ -57,6 +59,8 @@ paths:
       responses:
         "201":
           description: Draft version created.
+        "409":
+          description: Idempotency key was reused for a different request.
   /v1/personas/{personaId}/versions/{version}/publish:
     post:
       summary: Publish an immutable persona version.
@@ -79,6 +83,8 @@ paths:
       responses:
         "200":
           description: Version published.
+        "409":
+          description: Idempotency key was reused for a different request.
   /v1/personas/{personaId}/versions/{version}/compile:
     post:
       summary: Compile a published persona version into a deterministic bundle.
@@ -101,6 +107,8 @@ paths:
       responses:
         "200":
           description: Compiled bundle.
+        "409":
+          description: Idempotency key was reused for a different request.
   /v1/personas/{personaId}/versions/{version}/diff/{otherVersion}:
     get:
       summary: Diff two persona versions.
@@ -139,6 +147,8 @@ paths:
       responses:
         "200":
           description: Plugin accepted.
+        "409":
+          description: Idempotency key was reused for a different request.
 components:
   securitySchemes:
     bearerAuth:

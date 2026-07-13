@@ -7,7 +7,7 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
   private readonly personas = new Map<string, Persona>();
   private readonly versions = new Map<string, PersonaVersion>();
   private readonly bundles = new Map<string, CompiledBundle>();
-  private readonly idempotency = new Map<string, unknown>();
+  private readonly idempotency = new Map<string, IdempotencyRecord>();
   private readonly audits: AuditEvent[] = [];
   private readonly plugins = new Map<string, PluginManifest>();
   private atomicTail: Promise<void> = Promise.resolve();
@@ -97,15 +97,19 @@ export class InMemoryAsterStore implements PersonaRepository, AuditLog, Idempote
     this.audits.push(event);
   }
 
-  public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string): Promise<T | undefined> {
+  public async replay<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, requestHash: string): Promise<T | undefined> {
     if (!idempotencyKey) return undefined;
-    const response = this.idempotency.get(`${tenantId}:${operation}:${idempotencyKey}`);
-    return response === undefined ? undefined : structuredClone(response as T);
+    const record = this.idempotency.get(`${tenantId}:${operation}:${idempotencyKey}`);
+    if (!record) return undefined;
+    if (record.requestHash !== requestHash) {
+      throw new AsterError("IDEMPOTENCY_CONFLICT", 409, "Idempotency key was already used for a different request.");
+    }
+    return structuredClone(record.response as T);
   }
 
-  public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, response: T): Promise<void> {
+  public async record<T>(tenantId: string, idempotencyKey: string | undefined, operation: string, requestHash: string, response: T): Promise<void> {
     if (!idempotencyKey) return;
-    this.idempotency.set(`${tenantId}:${operation}:${idempotencyKey}`, structuredClone(response));
+    this.idempotency.set(`${tenantId}:${operation}:${idempotencyKey}`, { requestHash, response: structuredClone(response) });
   }
 
   public async validateReferences(
@@ -169,6 +173,11 @@ const restore = <T>(target: Map<string, T>, snapshot: Map<string, T>): void => {
   target.clear();
   for (const [key, value] of snapshot) target.set(key, value);
 };
+
+interface IdempotencyRecord {
+  readonly requestHash: string;
+  readonly response: unknown;
+}
 
 const key = (tenantId: string, id: string): string => `${tenantId}:${id}`;
 const versionKey = (tenantId: string, personaId: string, version: number): string => `${tenantId}:${personaId}:${version}`;

@@ -24,7 +24,7 @@ export class AsterService {
 
   public async createPersona(context: RequestContext, input: { readonly name: string }): Promise<Persona> {
     this.requireTenant(context);
-    return this.idempotent(context, "createPersona", async (mutation) => {
+    return this.idempotent(context, "createPersona", { actorId: context.actorId, input }, async (mutation) => {
       if (input.name.trim().length === 0) {
         throw new AsterError("VALIDATION_FAILED", 422, "Persona name is required.", ["name is required"]);
       }
@@ -49,7 +49,7 @@ export class AsterService {
     input: { readonly personaId: string; readonly contract: unknown }
   ): Promise<PersonaVersion> {
     this.requireTenant(context);
-    return this.idempotent(context, "createVersion", async (mutation) => {
+    return this.idempotent(context, "createVersion", { actorId: context.actorId, input }, async (mutation) => {
       const persona = await mutation.repository.getPersona(context.tenantId, input.personaId);
       if (!persona) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona was not found.");
       const contract = parsePersonaContract(input.contract);
@@ -85,7 +85,7 @@ export class AsterService {
     input: { readonly personaId: string; readonly version: number }
   ): Promise<PersonaVersion> {
     this.requireTenant(context);
-    return this.idempotent(context, `publishVersion:${input.personaId}:${input.version}`, async (mutation) => {
+    return this.idempotent(context, "publishVersion", { actorId: context.actorId, input }, async (mutation) => {
       const existing = await mutation.repository.getVersion(context.tenantId, input.personaId, input.version);
       if (!existing) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
       if (existing.status !== "draft") {
@@ -131,7 +131,7 @@ export class AsterService {
     input: { readonly personaId: string; readonly version: number }
   ): Promise<CompiledBundle> {
     this.requireTenant(context);
-    return this.idempotent(context, `compileVersion:${input.personaId}:${input.version}`, async (mutation) => {
+    return this.idempotent(context, "compileVersion", { actorId: context.actorId, input }, async (mutation) => {
       const personaVersion = await mutation.repository.getVersion(context.tenantId, input.personaId, input.version);
       if (!personaVersion) throw new AsterError("RESOURCE_NOT_FOUND", 404, "Persona version was not found.");
       assertPublished(personaVersion.status);
@@ -193,22 +193,28 @@ export class AsterService {
   public async validatePlugin(context: RequestContext, input: unknown): Promise<{ readonly valid: true }> {
     this.requireTenant(context);
     const manifest: PluginManifest = parsePluginManifest(input);
-    return this.idempotent(context, `validatePlugin:${manifest.name}:${manifest.version}`, async () => {
+    return this.idempotent(context, "validatePlugin", { actorId: context.actorId, manifest }, async () => {
       await this.ports.plugins.validateManifest(context.tenantId, manifest);
       return { valid: true };
     });
   }
 
-  private async idempotent<T>(context: RequestContext, operation: string, create: (mutation: AtomicMutationPorts) => Promise<T>): Promise<T> {
+  private async idempotent<T>(
+    context: RequestContext,
+    operation: string,
+    request: unknown,
+    create: (mutation: AtomicMutationPorts) => Promise<T>
+  ): Promise<T> {
     const idempotencyKey = context.idempotencyKey;
     if (!idempotencyKey) {
       throw new AsterError("IDEMPOTENCY_CONFLICT", 409, "State-changing operations require an idempotency key.");
     }
+    const requestHash = sha256Hex(request);
     return this.ports.transactions.runAtomically({ tenantId: context.tenantId, idempotencyKey, operation }, async (mutation) => {
-      const replayed = await mutation.idempotency.replay<T>(context.tenantId, idempotencyKey, operation);
+      const replayed = await mutation.idempotency.replay<T>(context.tenantId, idempotencyKey, operation, requestHash);
       if (replayed) return replayed;
       const response = await create(mutation);
-      await mutation.idempotency.record(context.tenantId, idempotencyKey, operation, response);
+      await mutation.idempotency.record(context.tenantId, idempotencyKey, operation, requestHash, response);
       return response;
     });
   }

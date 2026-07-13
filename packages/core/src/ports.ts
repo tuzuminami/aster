@@ -41,8 +41,8 @@ export interface PluginRegistry {
 }
 
 export interface IdempotencyStore {
-  replay<T>(tenantId: string, key: string | undefined, operation: string): Promise<T | undefined>;
-  record<T>(tenantId: string, key: string | undefined, operation: string, response: T): Promise<void>;
+  replay<T>(tenantId: string, key: string | undefined, operation: string, requestHash: string): Promise<T | undefined>;
+  record<T>(tenantId: string, key: string | undefined, operation: string, requestHash: string, response: T): Promise<void>;
 }
 
 export interface AuditLog {
